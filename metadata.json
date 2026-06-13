@@ -1,0 +1,8 @@
+{
+  "name": "راهنمای هوشمند مهاجرت",
+  "description": "پلتفرم تخصصی چند مرحله‌ای ارزیابی شرایط و سنجش شانس مهاجرت از ایران بر اساس قوانین بین‌المللی بروزرسانی ۲۰۲۶ با تحلیل هوشمند مقاصد برتر",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
