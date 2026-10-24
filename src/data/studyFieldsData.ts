@@ -1,0 +1,390 @@
+export interface StudyFieldItem {
+  id: string;
+  nameFa: string;
+  nameEn: string;
+  category: "tech_cs" | "engineering" | "health_life_sciences" | "business_quant" | "sciences_education";
+  isRegulatedProfession: boolean;
+  licensureRequiredFa?: string;
+  typicalDegreeEntry: string;
+  typicalDurationFa: string;
+  fundingAvailability: "high" | "moderate" | "competitive_low";
+  bestDestinations: string[]; // Country codes
+  keyAdviceFa: string;
+}
+
+export const STUDY_FIELDS: StudyFieldItem[] = [
+  {
+    id: "cs_software",
+    nameFa: "علوم کامپیوتر و مهندسی نرم‌افزار",
+    nameEn: "Computer Science & Software Engineering",
+    category: "tech_cs",
+    isRegulatedProfession: false,
+    typicalDegreeEntry: "کارشناسی یا کارشناسی ارشد",
+    typicalDurationFa: "۱ الی ۲ سال (ارشد) / ۳ الی ۴ سال (کارشناسی)",
+    fundingAvailability: "high",
+    bestDestinations: ["CA", "DE", "US", "NL", "IE", "SE", "EE"],
+    keyAdviceFa: "پورتفولیو در گیت‌هاب، سابقه حل مسئله الگوریتمی و مشارکت در پروژه‌های منبع‌باز شانس فاند و کار پس از تحصیل را به شدت افزایش می‌دهد."
+  },
+  {
+    id: "ai_ml",
+    nameFa: "هوش مصنوعی و یادگیری ماشین",
+    nameEn: "Artificial Intelligence & Machine Learning",
+    category: "tech_cs",
+    isRegulatedProfession: false,
+    typicalDegreeEntry: "کارشناسی ارشد یا دکتری",
+    typicalDurationFa: "۲ سال (ارشد) / ۴ سال (دکتری)",
+    fundingAvailability: "high",
+    bestDestinations: ["US", "CA", "GB", "DE", "CH", "NL", "SG"],
+    keyAdviceFa: "پایه‌های قوی در ریاضیات، جبر خطی و مقالات کنفرانسی معتبر (NeurIPS, ICML, CVPR) مسیر دریافت دستیاری پژوهشی (RA) را تضمین می‌کند."
+  },
+  {
+    id: "data_science_analytics",
+    nameFa: "علم داده، آمار کاربردی و تحلیل کمی",
+    nameEn: "Data Science, Applied Statistics & Quantitative Analytics",
+    category: "tech_cs",
+    isRegulatedProfession: false,
+    typicalDegreeEntry: "کارشناسی ارشد",
+    typicalDurationFa: "۱ تا ۲ سال",
+    fundingAvailability: "moderate",
+    bestDestinations: ["US", "GB", "NL", "DE", "IE", "AU"],
+    keyAdviceFa: "تمرکز بر بیزینس کیس‌های واقعی، تسلط به SQL و پایتون و ابزارهای کلود، پذیرش و جذب در شرکت‌های تجاری را تسریع می‌کند."
+  },
+  {
+    id: "cybersecurity",
+    nameFa: "امنیت سایبری و امنیت اطلاعات",
+    nameEn: "Cybersecurity & Information Security",
+    category: "tech_cs",
+    isRegulatedProfession: false,
+    typicalDegreeEntry: "کارشناسی ارشد یا گواهینامه‌های تخصصی",
+    typicalDurationFa: "۱ الی ۲ سال",
+    fundingAvailability: "moderate",
+    bestDestinations: ["EE", "US", "GB", "NL", "AU"],
+    keyAdviceFa: "استونی و هلند قطب‌های اصلی اروپا در این حوزه هستند. گواهینامه‌های بین‌المللی مانند CISSP یا CEH ارزش افزوده بالایی دارند."
+  },
+  {
+    id: "cloud_devops",
+    nameFa: "رایانش ابری، سیستم‌های توزیع‌شده و DevOps",
+    nameEn: "Cloud Computing, Distributed Systems & DevOps",
+    category: "tech_cs",
+    isRegulatedProfession: false,
+    typicalDegreeEntry: "کارشناسی ارشد",
+    typicalDurationFa: "۱ الی ۲ سال",
+    fundingAvailability: "moderate",
+    bestDestinations: ["DE", "CA", "US", "NL", "IE"],
+    keyAdviceFa: "تجربه عملی با Kubernetes، Terraform و ابزارهای CI/CD در کنار تسلط به ارائه‌دهندگان ابری اصلی مزیت رقابتی است."
+  },
+  {
+    id: "electrical_electronics",
+    nameFa: "مهندسی برق و الکترونیک",
+    nameEn: "Electrical & Electronic Engineering",
+    category: "engineering",
+    isRegulatedProfession: true,
+    licensureRequiredFa: "در بعضی کشورها نیازمند ثبت در سازمان مهندسی (مانند P.Eng در کانادا یا Engineers Australia).",
+    typicalDegreeEntry: "کارشناسی، ارشد یا دکتری",
+    typicalDurationFa: "۲ سال (ارشد)",
+    fundingAvailability: "high",
+    bestDestinations: ["DE", "US", "CA", "TW", "KR", "JP"],
+    keyAdviceFa: "آلمان و تایوان قطب‌های صنعتی برجسته‌ای برای پیوند دانشگاه با صنایع پیشرفته الکترونیک و اتوماسیون هستند."
+  },
+  {
+    id: "semiconductors_microelectronics",
+    nameFa: "نیمه‌رساناها، میکروالکترونیک و فوتونیک",
+    nameEn: "Semiconductors, Microelectronics & Photonics",
+    category: "engineering",
+    isRegulatedProfession: false,
+    typicalDegreeEntry: "کارشناسی ارشد یا دکتری",
+    typicalDurationFa: "۲ سال (ارشد) / ۳ الی ۵ سال (دکتری)",
+    fundingAvailability: "high",
+    bestDestinations: ["TW", "NL", "DE", "US", "KR", "JP"],
+    keyAdviceFa: "هلند (با غول ASML) و تایوان بالاترین تقاضای جهانی و فاند صنعتی را در این حوزه ارائه می‌دهند."
+  },
+  {
+    id: "robotics_mechatronics",
+    nameFa: "رباتیک، مکاترونیک و کنترل صنعتی",
+    nameEn: "Robotics, Mechatronics & Industrial Control",
+    category: "engineering",
+    isRegulatedProfession: false,
+    typicalDegreeEntry: "کارشناسی ارشد یا دکتری",
+    typicalDurationFa: "۲ سال (ارشد)",
+    fundingAvailability: "high",
+    bestDestinations: ["DE", "JP", "CH", "US", "SE"],
+    keyAdviceFa: "آلمان و ژاپن بهشت مهندسان رباتیک صنعتی هستند. داشتن نمونه کار سخت‌افزاری/شبیه‌سازی ROS در قبولی بسیار مؤثر است."
+  },
+  {
+    id: "mechanical_engineering",
+    nameFa: "مهندسی مکانیک و طراحی محصول",
+    nameEn: "Mechanical Engineering & Product Design",
+    category: "engineering",
+    isRegulatedProfession: true,
+    licensureRequiredFa: "ثبت نظام مهندسی استانی/ایالتی برای پروژه‌های زیربنایی یا نظارتی الزامی است.",
+    typicalDegreeEntry: "کارشناسی، ارشد یا دکتری",
+    typicalDurationFa: "۲ سال (ارشد)",
+    fundingAvailability: "moderate",
+    bestDestinations: ["DE", "CA", "US", "SE", "IT"],
+    keyAdviceFa: "آلمان با داشتن صنعت خودروسازی و ماشین‌آلات پیشرو، بیشترین جذب مهندسان مکانیک را داراست؛ تسلط به آلمانی برگ برنده است."
+  },
+  {
+    id: "civil_structural",
+    nameFa: "مهندسی عمران، سازه و ژئوتکنیک",
+    nameEn: "Civil, Structural & Geotechnical Engineering",
+    category: "engineering",
+    isRegulatedProfession: true,
+    licensureRequiredFa: "حرفه کاملاً نظام‌مند (Regulated)؛ نیاز به تأییدیه مدارک و دوره‌های قوانین ایمنی و مقررات ساخت‌وساز محلی.",
+    typicalDegreeEntry: "کارشناسی یا کارشناسی ارشد",
+    typicalDurationFa: "۲ سال (ارشد)",
+    fundingAvailability: "moderate",
+    bestDestinations: ["AU", "CA", "NZ", "AE", "GB"],
+    keyAdviceFa: "استرالیا، کانادا و نیوزیلند به دلیل توسعه زیرساختی تقاضای بالایی دارند؛ ارزیابی مدرک از نهادهایی چون Engineers Australia حیاتی است."
+  },
+  {
+    id: "construction_management",
+    nameFa: "مدیریت ساخت، نقشه‌برداری و Quantity Surveying",
+    nameEn: "Construction Management & Quantity Surveying",
+    category: "engineering",
+    isRegulatedProfession: true,
+    licensureRequiredFa: "عضویت در نهادهایی چون RICS در بریتانیا و استرالیا اعتبار بین‌المللی ایجاد می‌کند.",
+    typicalDegreeEntry: "کارشناسی ارشد",
+    typicalDurationFa: "۱ الی ۲ سال",
+    fundingAvailability: "moderate",
+    bestDestinations: ["AU", "GB", "NZ", "AE", "IE"],
+    keyAdviceFa: "رشته‌ای بسیار کاربردی با بازگشت سرمایه سریع در کشورهای در حال رشد مسکن و زیرساخت مانند استرالیا و ایرلند."
+  },
+  {
+    id: "renewable_energy",
+    nameFa: "مهندسی انرژی‌های تجدیدپذیر و شبکه برق",
+    nameEn: "Renewable Energy Engineering & Smart Grids",
+    category: "engineering",
+    isRegulatedProfession: false,
+    typicalDegreeEntry: "کارشناسی ارشد",
+    typicalDurationFa: "۱.۵ تا ۲ سال",
+    fundingAvailability: "high",
+    bestDestinations: ["DK", "DE", "SE", "NL", "AU"],
+    keyAdviceFa: "دانمارک و آلمان پیشگامان انرژی بادی و خورشیدی اروپا با فاندها و پروژه‌های مشترک اتحادیه اروپا هستند."
+  },
+  {
+    id: "environmental_water",
+    nameFa: "مهندسی محیط زیست، آب و اقلیم",
+    nameEn: "Environmental, Water & Climate Engineering",
+    category: "engineering",
+    isRegulatedProfession: false,
+    typicalDegreeEntry: "کارشناسی ارشد یا دکتری",
+    typicalDurationFa: "۲ سال",
+    fundingAvailability: "high",
+    bestDestinations: ["NL", "DE", "SE", "CA", "AU"],
+    keyAdviceFa: "هلند برجسته‌ترین مرجع جهانی در مهندسی آب و سدسازی و مقابله با تغییرات اقلیمی است."
+  },
+  {
+    id: "chemical_process",
+    nameFa: "مهندسی شیمی و فرایند",
+    nameEn: "Chemical & Process Engineering",
+    category: "engineering",
+    isRegulatedProfession: true,
+    licensureRequiredFa: "برای صنایع دارویی یا پتروشیمی ممکن است نیازمند تطبیق استانداردهای ایمنی و کاربری مواد باشد.",
+    typicalDegreeEntry: "کارشناسی، ارشد یا دکتری",
+    typicalDurationFa: "۲ سال",
+    fundingAvailability: "high",
+    bestDestinations: ["DE", "US", "NL", "CA", "BE"],
+    keyAdviceFa: "صنایع دارویی بلژیک و پتروشیمی آلمان فاندها و موقعیت‌های دکتری صنعتی متعددی به فارغ‌التحصیلان ارائه می‌دهند."
+  },
+  {
+    id: "materials_nanotech",
+    nameFa: "علم مواد و نانوفناوری",
+    nameEn: "Materials Science & Nanotechnology",
+    category: "engineering",
+    isRegulatedProfession: false,
+    typicalDegreeEntry: "کارشناسی ارشد یا دکتری",
+    typicalDurationFa: "۲ سال (ارشد) / ۴ سال (دکتری)",
+    fundingAvailability: "high",
+    bestDestinations: ["US", "DE", "CH", "JP", "KR"],
+    keyAdviceFa: "تحقیقات این حوزه اکثراً فاند کامل دارند. رزومه آزمایشگاهی و انتشارات در ژورنال‌های معتبر شانس قبولی را قطعی می‌سازد."
+  },
+  {
+    id: "biotech_computational_bio",
+    nameFa: "زیست‌فناوری و زیست‌شناسی محاسباتی",
+    nameEn: "Biotechnology & Computational Biology",
+    category: "health_life_sciences",
+    isRegulatedProfession: false,
+    typicalDegreeEntry: "کارشناسی ارشد یا دکتری",
+    typicalDurationFa: "۲ سال",
+    fundingAvailability: "high",
+    bestDestinations: ["US", "DE", "CH", "GB", "NL", "DK"],
+    keyAdviceFa: "ترکیب مهارت‌های زیستی با برنامه‌نویسی پایتون/R و تحلیل دیتاست‌های ژنتیکی شانس استخدام بسیار بالایی فراهم می‌آورد."
+  },
+  {
+    id: "pharmaceutical_sciences",
+    nameFa: "علوم دارویی و توسعه دارو",
+    nameEn: "Pharmaceutical Sciences & Drug Development",
+    category: "health_life_sciences",
+    isRegulatedProfession: true,
+    licensureRequiredFa: "فعالیت در داروخانه نیازمند پروانه رسمی داروسازی است؛ اما بخش تحقیق و توسعه (R&D) در کارخانجات عموماً معاف از این شرط است.",
+    typicalDegreeEntry: "کارشناسی ارشد یا دکتری",
+    typicalDurationFa: "۲ سال",
+    fundingAvailability: "high",
+    bestDestinations: ["IE", "CH", "DE", "US", "DK"],
+    keyAdviceFa: "ایرلند و سوئیس قطب تولید داروی جهان هستند و شرکت‌های داروسازی بین‌المللی سالانه صدها محقق جذب می‌کنند."
+  },
+  {
+    id: "nursing_health",
+    nameFa: "پرستاری و علوم سلامت (دارای مجوز محلی)",
+    nameEn: "Nursing & Health Sciences",
+    category: "health_life_sciences",
+    isRegulatedProfession: true,
+    licensureRequiredFa: "کاملاً نظام‌مند و سخت‌گیرانه؛ ثبت در بورد پرستاری کشور مقصد (NMC انگلیس، AHPRA استرالیا و غیره) و نمره زبان بالای اختصاصی (OET یا آیلتس ۷).",
+    typicalDegreeEntry: "کارشناسی یا کارشناسی ارشد",
+    typicalDurationFa: "۲ الی ۳ سال",
+    fundingAvailability: "moderate",
+    bestDestinations: ["AU", "GB", "CA", "DE", "IE", "NZ"],
+    keyAdviceFa: "بالاترین تقاضای اقامت دائم در تمام کشورهای پیشرفته متعلق به پرستاران است؛ چالش اصلی گذراندن آزمون رجیستریشن است."
+  },
+  {
+    id: "public_health_epidemiology",
+    nameFa: "بهداشت عمومی و اپیدمیولوژی",
+    nameEn: "Public Health & Epidemiology",
+    category: "health_life_sciences",
+    isRegulatedProfession: false,
+    typicalDegreeEntry: "کارشناسی ارشد (MPH)",
+    typicalDurationFa: "۱ الی ۲ سال",
+    fundingAvailability: "moderate",
+    bestDestinations: ["GB", "US", "NL", "SE", "CA"],
+    keyAdviceFa: "سازمان‌های بین‌المللی و مراکز دولتی بهداشت تقاضای مستمری برای تحلیل‌گران داده‌های سلامت عمومی دارند."
+  },
+  {
+    id: "medical_lab_imaging",
+    nameFa: "علوم آزمایشگاهی پزشکی و تصویربرداری",
+    nameEn: "Medical Laboratory Science & Imaging",
+    category: "health_life_sciences",
+    isRegulatedProfession: true,
+    licensureRequiredFa: "نیازمند معادل‌سازی مدرک بالینی و رجیستریشن در سازمان سلامت کشور مقصد.",
+    typicalDegreeEntry: "کارشناسی یا ارشد",
+    typicalDurationFa: "۲ سال",
+    fundingAvailability: "moderate",
+    bestDestinations: ["AU", "CA", "GB", "NZ"],
+    keyAdviceFa: "استرالیا و کانادا کمبود شدید نیروی تکنسین آزمایشگاه و رادیولوژی دارند."
+  },
+  {
+    id: "physiotherapy_rehab",
+    nameFa: "فیزیوتراپی، کاردرمانی و توانبخشی",
+    nameEn: "Physiotherapy & Occupational Therapy",
+    category: "health_life_sciences",
+    isRegulatedProfession: true,
+    licensureRequiredFa: "حرفه رجیسترشده؛ آزمون عملی و ارزیابی مدرک تحصیلی الزامی است.",
+    typicalDegreeEntry: "کارشناسی یا کارشناسی ارشد",
+    typicalDurationFa: "۲ سال",
+    fundingAvailability: "moderate",
+    bestDestinations: ["AU", "GB", "CA", "NZ"],
+    keyAdviceFa: "در فهرست مشاغل استراتژیک استرالیا و نیوزیلند قرار دارد؛ حقوق و تعادل کار و زندگی بالایی ارائه می‌دهد."
+  },
+  {
+    id: "medicine_clinical",
+    nameFa: "پزشکی و تخصص‌های بالینی",
+    nameEn: "Medicine & Clinical Specialties",
+    category: "health_life_sciences",
+    isRegulatedProfession: true,
+    licensureRequiredFa: "بسیار دشوار و زمان‌بر؛ آزمون‌های تطبیقی نظیر USMLE آمریکا، PLAB/UKMLA بریتانیا، یا Approbation آلمان.",
+    typicalDegreeEntry: "دوره تخصص بالینی / MD",
+    typicalDurationFa: "۳ الی ۶ سال",
+    fundingAvailability: "moderate",
+    bestDestinations: ["DE", "GB", "US", "AU"],
+    keyAdviceFa: "آلمان با شرط مدرک زبان آلمانی B2 و C1 پزشکی (Fachsprachenprüfung) یکی از دردسترس‌ترین مسیرهای مهاجرت پزشکان است."
+  },
+  {
+    id: "dentistry",
+    nameFa: "دندان‌پزشکی و سلامت دهان",
+    nameEn: "Dentistry & Oral Health",
+    category: "health_life_sciences",
+    isRegulatedProfession: true,
+    licensureRequiredFa: "نیازمند آزمون‌های جامع تئوری و عملی بورد دندان‌پزشکی مقصد (مانند NDEB کانادا یا ADC استرالیا).",
+    typicalDegreeEntry: "کارشناسی ارشد یا فلوشیپ",
+    typicalDurationFa: "۲ الی ۳ سال",
+    fundingAvailability: "competitive_low",
+    bestDestinations: ["DE", "GB", "AU", "CA"],
+    keyAdviceFa: "هزینه‌های تجهیزات و امتحانات معادل‌سازی بالاست، اما درآمد و شانس اشتغال پس از اخذ پروانه فوق‌العاده است."
+  },
+  {
+    id: "veterinary",
+    nameFa: "دامپزشکی و بهداشت دام",
+    nameEn: "Veterinary Medicine & Animal Health",
+    category: "health_life_sciences",
+    isRegulatedProfession: true,
+    licensureRequiredFa: "ارزیابی توسط سازمان دامپزشکی کشور مقصد (RCVS بریتانیا یا AVBC استرالیا).",
+    typicalDegreeEntry: "دکترای عمومی یا تخصصی",
+    typicalDurationFa: "۲ تا ۴ سال",
+    fundingAvailability: "moderate",
+    bestDestinations: ["AU", "NZ", "GB", "CA"],
+    keyAdviceFa: "نیوزیلند و استرالیا به دلیل گستردگی صنعت دامپروری بالاترین نیاز را به دامپزشکان دارند."
+  },
+  {
+    id: "precision_agriculture",
+    nameFa: "کشاورزی دقیق، علوم گیاهی و امنیت غذایی",
+    nameEn: "Precision Agriculture & Food Security",
+    category: "engineering",
+    isRegulatedProfession: false,
+    typicalDegreeEntry: "کارشناسی ارشد یا دکتری",
+    typicalDurationFa: "۲ سال",
+    fundingAvailability: "high",
+    bestDestinations: ["NL", "CA", "AU", "US", "NZ"],
+    keyAdviceFa: "دانشگاه واگنینگن هلند (WUR) رتبه یک جهان در علوم کشاورزی است و فاندها و پروژه‌های بین‌المللی فراوانی دارد."
+  },
+  {
+    id: "supply_chain_logistics",
+    nameFa: "زنجیره تأمین، لجستیک و تحلیل عملیات",
+    nameEn: "Supply Chain Management & Logistics Analytics",
+    category: "business_quant",
+    isRegulatedProfession: false,
+    typicalDegreeEntry: "کارشناسی ارشد",
+    typicalDurationFa: "۱ الی ۲ سال",
+    fundingAvailability: "moderate",
+    bestDestinations: ["NL", "DE", "SG", "US", "CA"],
+    keyAdviceFa: "روتردام هلند و سنگاپور قطب‌های بندرگاهی و زنجیره تأمین جهان هستند؛ ترکیب مهارت تحلیل داده با لجستیک بسیار ارزشمند است."
+  },
+  {
+    id: "quantitative_finance",
+    nameFa: "امور مالی کمی، مدیریت ریسک و اکچوئری",
+    nameEn: "Quantitative Finance, Risk Management & Actuarial Science",
+    category: "business_quant",
+    isRegulatedProfession: false,
+    typicalDegreeEntry: "کارشناسی ارشد",
+    typicalDurationFa: "۱ الی ۲ سال",
+    fundingAvailability: "moderate",
+    bestDestinations: ["GB", "US", "CH", "SG", "NL"],
+    keyAdviceFa: "لندن، نیویورک، زوریخ و سنگاپور مراکز بلامنازع این رشته هستند. تسلط به پایتون، C++ و ریاضیات مالی شرط کلیدی استخدام است."
+  },
+  {
+    id: "accounting_business_analytics",
+    nameFa: "حسابداری، مالیات و تحلیل کسب‌وکار",
+    nameEn: "Accounting, Taxation & Business Analytics",
+    category: "business_quant",
+    isRegulatedProfession: true,
+    licensureRequiredFa: "حسابداری در شرکت‌های رسمی نیازمند مدارک حرفه‌ای مانند ACCA، CPA یا CA است.",
+    typicalDegreeEntry: "کارشناسی ارشد",
+    typicalDurationFa: "۱ الی ۲ سال",
+    fundingAvailability: "moderate",
+    bestDestinations: ["AU", "CA", "GB", "IE"],
+    keyAdviceFa: "گرایش تحلیل کسب‌وکار (Business Analytics) برای ورود به شرکت‌های فناوری بسیار تقاضا دارد و معاف از آزمون‌های محلی حسابداری است."
+  },
+  {
+    id: "stem_education",
+    nameFa: "آموزش STEM و آموزش کودکان",
+    nameEn: "STEM Education & Early Childhood Teaching",
+    category: "sciences_education",
+    isRegulatedProfession: true,
+    licensureRequiredFa: "معلمان نیازمند رجیستریشن استانی/ملی و سوءپیشینه بدون نقص و نمره زبان بالای آیلتس (معمولاً ۷.۵ یا ۸ در گفتار/شنیدار) هستند.",
+    typicalDegreeEntry: "کارشناسی ارشد یا دیپلم تحصیلات تکمیلی (PGCE)",
+    typicalDurationFa: "۱ الی ۲ سال",
+    fundingAvailability: "moderate",
+    bestDestinations: ["AU", "NZ", "GB", "CA"],
+    keyAdviceFa: "معلمی اوان کودکی و دبیران علوم/ریاضی در استرالیا و نیوزیلند در بالاترین اولویت‌های دعوت‌نامه اقامت دائم قرار دارند."
+  },
+  {
+    id: "fundamental_sciences",
+    nameFa: "فیزیک، شیمی، ریاضی و علوم پایه پژوهش‌محور",
+    nameEn: "Fundamental Sciences (Physics, Chemistry, Mathematics)",
+    category: "sciences_education",
+    isRegulatedProfession: false,
+    typicalDegreeEntry: "کارشناسی ارشد یا دکتری",
+    typicalDurationFa: "۲ سال (ارشد) / ۳ الی ۵ سال (دکتری)",
+    fundingAvailability: "high",
+    bestDestinations: ["DE", "US", "CH", "FR", "JP", "CA"],
+    keyAdviceFa: "اکثر پوزیشن‌های دکترا در کشورهای اروپایی همراه با حقوق و استخدام رسمی دانشگاهی (قرارداد کاری محقق) است."
+  }
+];

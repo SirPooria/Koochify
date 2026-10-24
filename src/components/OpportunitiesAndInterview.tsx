@@ -6,7 +6,7 @@ import {
   SCAM_WARNINGS,
   JobPortalItem,
   ScholarshipPortalItem
-} from "../data/oppData";
+} from "../data/opportunitiesData";
 import {
   Briefcase,
   GraduationCap,
