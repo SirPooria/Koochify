@@ -1,20 +1,20 @@
 import React, { useState } from "react";
-import { 
-  OFFICIAL_JOB_PORTALS, 
-  SCHOLARSHIP_AND_RESEARCH_PROGRAMS, 
-  STAR_INTERVIEW_GUIDELINES, 
+import {
+  OFFICIAL_JOB_PORTALS,
+  SCHOLARSHIP_AND_RESEARCH_PROGRAMS,
+  STAR_INTERVIEW_GUIDELINES,
   SCAM_WARNINGS,
   JobPortalItem,
-  ScholarshipPortalItem 
-} from "../data/opportunitiesData";
-import { 
-  Briefcase, 
-  GraduationCap, 
-  MessageSquare, 
-  AlertTriangle, 
-  ExternalLink, 
-  CheckCircle2, 
-  ShieldCheck, 
+  ScholarshipPortalItem
+} from "../data/oppData";
+import {
+  Briefcase,
+  GraduationCap,
+  MessageSquare,
+  AlertTriangle,
+  ExternalLink,
+  CheckCircle2,
+  ShieldCheck,
   Search,
   Sparkles,
   Award
@@ -66,44 +66,40 @@ export const OpportunitiesAndInterview: React.FC = () => {
         <div className="flex flex-wrap gap-2 mt-6 pt-6 border-t border-slate-800">
           <button
             onClick={() => setActiveTab("jobs")}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
-              activeTab === "jobs"
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${activeTab === "jobs"
                 ? "bg-emerald-600 text-white shadow-lg shadow-emerald-900/30"
                 : "bg-slate-800/60 text-slate-300 hover:bg-slate-800 hover:text-white"
-            }`}
+              }`}
           >
             <Briefcase className="w-4 h-4" />
             پرتال‌های رسمی کاریابی مستقیم ({OFFICIAL_JOB_PORTALS.length})
           </button>
           <button
             onClick={() => setActiveTab("scholarships")}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
-              activeTab === "scholarships"
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${activeTab === "scholarships"
                 ? "bg-emerald-600 text-white shadow-lg shadow-emerald-900/30"
                 : "bg-slate-800/60 text-slate-300 hover:bg-slate-800 hover:text-white"
-            }`}
+              }`}
           >
             <GraduationCap className="w-4 h-4" />
             بورسیه‌ها و پوزیشن‌های دکترا ({SCHOLARSHIP_AND_RESEARCH_PROGRAMS.length})
           </button>
           <button
             onClick={() => setActiveTab("interview")}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
-              activeTab === "interview"
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${activeTab === "interview"
                 ? "bg-emerald-600 text-white shadow-lg shadow-emerald-900/30"
                 : "bg-slate-800/60 text-slate-300 hover:bg-slate-800 hover:text-white"
-            }`}
+              }`}
           >
             <MessageSquare className="w-4 h-4" />
             تکنیک مصاحبه شایستگی‌محور (STAR)
           </button>
           <button
             onClick={() => setActiveTab("scams")}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
-              activeTab === "scams"
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${activeTab === "scams"
                 ? "bg-rose-600 text-white shadow-lg shadow-rose-950/30"
                 : "bg-slate-800/60 text-slate-300 hover:bg-slate-800 hover:text-white"
-            }`}
+              }`}
           >
             <AlertTriangle className="w-4 h-4 text-rose-300" />
             هشدارهای امنیتی و ضد تقلب
@@ -132,7 +128,7 @@ export const OpportunitiesAndInterview: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {filteredJobs.map((job, idx) => (
-              <div 
+              <div
                 key={idx}
                 className="bg-slate-900/70 border border-slate-800 hover:border-emerald-500/40 rounded-xl p-5 flex flex-col justify-between transition-all group"
               >
@@ -187,17 +183,15 @@ export const OpportunitiesAndInterview: React.FC = () => {
               <div className="flex gap-1">
                 <button
                   onClick={() => setScholarshipFilter("all")}
-                  className={`px-3 py-1 text-xs rounded-lg font-medium transition-colors ${
-                    scholarshipFilter === "all" ? "bg-emerald-600 text-white" : "bg-slate-800 text-slate-400 hover:text-slate-200"
-                  }`}
+                  className={`px-3 py-1 text-xs rounded-lg font-medium transition-colors ${scholarshipFilter === "all" ? "bg-emerald-600 text-white" : "bg-slate-800 text-slate-400 hover:text-slate-200"
+                    }`}
                 >
                   همه ({SCHOLARSHIP_AND_RESEARCH_PROGRAMS.length})
                 </button>
                 <button
                   onClick={() => setScholarshipFilter("full")}
-                  className={`px-3 py-1 text-xs rounded-lg font-medium transition-colors ${
-                    scholarshipFilter === "full" ? "bg-emerald-600 text-white" : "bg-slate-800 text-slate-400 hover:text-slate-200"
-                  }`}
+                  className={`px-3 py-1 text-xs rounded-lg font-medium transition-colors ${scholarshipFilter === "full" ? "bg-emerald-600 text-white" : "bg-slate-800 text-slate-400 hover:text-slate-200"
+                    }`}
                 >
                   فول فاند و حقوق کامل
                 </button>
@@ -276,7 +270,7 @@ export const OpportunitiesAndInterview: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {STAR_INTERVIEW_GUIDELINES.map((step, idx) => (
-              <div 
+              <div
                 key={idx}
                 className="bg-slate-900/80 border border-slate-800 rounded-xl p-5 space-y-4 hover:border-slate-700 transition-colors"
               >
