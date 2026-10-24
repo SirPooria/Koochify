@@ -10,8 +10,42 @@
 body {
   font-family: "Vazirmatn", "Inter", sans-serif;
   background-color: #f8fafc;
-  color: #1e293b;
+  color: #0f172a;
   direction: rtl; /* Localized for Iranian users */
+  font-weight: 500;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Universal Form Controls - High Contrast & Sharp Legibility */
+input, select, textarea {
+  color: #0f172a !important;
+  background-color: #ffffff !important;
+  border-color: #cbd5e1;
+  font-weight: 600;
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: #059669 !important;
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.2) !important;
+}
+
+input::placeholder, textarea::placeholder {
+  color: #64748b !important;
+  opacity: 1 !important;
+  font-weight: 500;
+}
+
+option {
+  color: #0f172a !important;
+  background-color: #ffffff !important;
+  font-weight: 600;
+  padding: 8px;
+}
+
+label {
+  color: #0f172a !important;
+  font-weight: 700;
 }
 
 /* Animations and helper classes */
@@ -23,3 +57,4 @@ body {
 .animate-pulse-subtle {
   animation: pulse-subtle 3s infinite ease-in-out;
 }
+
