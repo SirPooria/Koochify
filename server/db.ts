@@ -56,19 +56,19 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 export const isSupabaseConfigured = Boolean(
-  supabaseUrl && 
-  supabaseServiceKey && 
+  supabaseUrl &&
+  supabaseServiceKey &&
   supabaseUrl.startsWith("http") &&
   supabaseServiceKey.length > 20
 );
 
 export const supabase: SupabaseClient | null = isSupabaseConfigured
   ? createClient(supabaseUrl!, supabaseServiceKey!, {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-      },
-    })
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  })
   : null;
 
 if (isSupabaseConfigured) {
@@ -90,14 +90,14 @@ function getSqliteDb() {
     if (!fs.existsSync(DATA_DIR)) {
       try {
         fs.mkdirSync(DATA_DIR, { recursive: true });
-      } catch {}
+      } catch { }
     }
     const DB_PATH = path.join(DATA_DIR, "koochify.db");
     sqliteDb = new DatabaseSync(DB_PATH);
     try {
       sqliteDb.exec("PRAGMA journal_mode = WAL;");
       sqliteDb.exec("PRAGMA foreign_keys = ON;");
-    } catch {}
+    } catch { }
 
     // Init SQLite Schema
     sqliteDb.exec(`
@@ -148,11 +148,11 @@ function getSqliteDb() {
       CREATE INDEX IF NOT EXISTS idx_assessments_user ON user_assessments(user_id);
     `);
 
-    try { sqliteDb.exec("ALTER TABLE users ADD COLUMN is_paid INTEGER NOT NULL DEFAULT 0;"); } catch {}
-    try { sqliteDb.exec("ALTER TABLE users ADD COLUMN payment_status TEXT NOT NULL DEFAULT 'none';"); } catch {}
-    try { sqliteDb.exec("ALTER TABLE users ADD COLUMN payment_ref TEXT;"); } catch {}
-    try { sqliteDb.exec("ALTER TABLE users ADD COLUMN card_last_digits TEXT;"); } catch {}
-    try { sqliteDb.exec("ALTER TABLE users ADD COLUMN paid_at TEXT;"); } catch {}
+    try { sqliteDb.exec("ALTER TABLE users ADD COLUMN is_paid INTEGER NOT NULL DEFAULT 0;"); } catch { }
+    try { sqliteDb.exec("ALTER TABLE users ADD COLUMN payment_status TEXT NOT NULL DEFAULT 'none';"); } catch { }
+    try { sqliteDb.exec("ALTER TABLE users ADD COLUMN payment_ref TEXT;"); } catch { }
+    try { sqliteDb.exec("ALTER TABLE users ADD COLUMN card_last_digits TEXT;"); } catch { }
+    try { sqliteDb.exec("ALTER TABLE users ADD COLUMN paid_at TEXT;"); } catch { }
   }
   return sqliteDb;
 }
@@ -224,6 +224,7 @@ function mapSqliteUser(row: any): User {
     paidAt: row.paid_at || null,
   };
 }
+
 
 // -----------------------------------------------------------------------------
 // 4. Unified Data Access Operations (Supabase with SQLite Fallback)
@@ -676,8 +677,8 @@ export async function getUserAssessments(userId: string): Promise<any[]> {
   return rows.map((r) => {
     let parsedResults: any = {};
     let parsedProfile: any = {};
-    try { parsedResults = JSON.parse(r.results_data); } catch {}
-    try { parsedProfile = JSON.parse(r.profile_data); } catch {}
+    try { parsedResults = JSON.parse(r.results_data); } catch { }
+    try { parsedProfile = JSON.parse(r.profile_data); } catch { }
 
     return {
       id: r.id,
@@ -846,7 +847,7 @@ export async function getAllLeadsForAdmin(): Promise<AdminLeadItem[]> {
           latestRoute = topDest.routeNameFa || null;
           latestScore = topDest.fitScore ?? null;
         }
-      } catch {}
+      } catch { }
     }
 
     return {
