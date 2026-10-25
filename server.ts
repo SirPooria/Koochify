@@ -269,8 +269,8 @@ app.get("/api/payment/config", (req, res) => {
     amountRials: 4990000,
     cardNumber: process.env.CARD_NUMBER || "6037-9979-1234-5678",
     cardHolder: process.env.CARD_HOLDER || "به نام مدیریت سامانه کوچیفای",
-    bankName: process.env.BANK_NAME || "بانک ملی ایران",
-    hasOnlineGateway: Boolean(process.env.MERCHANT_ID),
+    hasOnlineGateway: Boolean(process.env.ZIBAL_MERCHANT_KEY || process.env.MERCHANT_ID || "6addde0e944acf62f5fd1438"),
+    gatewayName: "درگاه پرداخت زیبال (شاپرک)",
     autoUnlockCardToCard: process.env.AUTO_UNLOCK_CARD_TO_CARD !== "false",
   });
 });
@@ -335,56 +335,128 @@ app.post("/api/payment/instant-unlock", authMiddleware, async (req: any, res) =>
   }
 });
 
-// Online Payment Request (ZarinPal or Sandbox)
-app.post("/api/payment/zarinpal/request", authMiddleware, async (req: any, res) => {
+// Online Payment Request (Zibal IPG Gateway)
+const handleOnlinePaymentRequest = async (req: any, res: any) => {
   try {
-    const merchantId = process.env.MERCHANT_ID;
-    const appUrl = process.env.APP_URL || `http://localhost:${process.env.PORT || 3001}`;
-    const callbackUrl = `${appUrl}/api/payment/zarinpal/callback?userId=${req.user.id}`;
-    const amountRials = 4990000; // 499,000 Tomans
+    const merchant =
+      process.env.ZIBAL_MERCHANT_KEY ||
+      process.env.MERCHANT_ID ||
+      "6addde0e944acf62f5fd1438";
 
-    if (merchantId && merchantId.length >= 30) {
-      // Real ZarinPal V4 API call
-      try {
-        const zarinRes = await fetch("https://api.zarinpal.com/pg/v4/payment/request.json", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            merchant_id: merchantId,
-            amount: amountRials,
-            description: `اشتراک جامع پرونده مهاجرت کوچیفای - ${req.user.phoneNumber}`,
-            callback_url: callbackUrl,
-            metadata: { mobile: req.user.phoneNumber },
-          }),
-        });
-        const zarinData: any = await zarinRes.json();
-        if (zarinData?.data?.code === 100 && zarinData?.data?.authority) {
-          return res.json({
-            success: true,
-            paymentUrl: `https://www.zarinpal.com/pg/StartPay/${zarinData.data.authority}`,
-            authority: zarinData.data.authority,
-          });
-        }
-      } catch (zErr) {
-        console.warn("Zarinpal live gateway failed, falling back to instant sandbox simulator:", zErr);
-      }
+    // Build canonical callback URL
+    const appUrl = (process.env.APP_URL && !process.env.APP_URL.includes("localhost"))
+      ? process.env.APP_URL.replace(/\/+$/, "")
+      : "https://koochify.ir";
+    const callbackUrl = `${appUrl}/api/payment/zibal/callback?userId=${req.user.id}`;
+    const amountRials = 4990000; // 499,000 Tomans = 4,990,000 Rials
+    const orderId = `KCF-${Date.now()}`;
+
+    console.log(`[ZIBAL REQUEST] شروع درخواست پرداخت به زیبال برای ${req.user.phoneNumber} با مرچنت ${merchant}`);
+
+    const zibalRes = await fetch("https://gateway.zibal.ir/v1/request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        merchant: merchant,
+        amount: amountRials,
+        callbackUrl: callbackUrl,
+        description: `اشتراک جامع پرونده مهاجرت کوچیفای - ${req.user.phoneNumber}`,
+        orderId: orderId,
+        mobile: req.user.phoneNumber ? req.user.phoneNumber.replace(/^(\+98|0098)/, "0") : undefined,
+      }),
+    });
+
+    const zibalData: any = await zibalRes.json();
+    console.log("[ZIBAL RESPONSE]", zibalData);
+
+    if (zibalData?.result === 100 && zibalData?.trackId) {
+      return res.json({
+        success: true,
+        paymentUrl: `https://gateway.zibal.ir/start/${zibalData.trackId}`,
+        trackId: zibalData.trackId,
+      });
     }
 
-    // Sandbox or fallback test payment
-    const mockAuthority = "A000000000000000000000000000" + Date.now();
-    return res.json({
-      success: true,
-      isSandbox: true,
-      paymentUrl: `/api/payment/simulate?userId=${req.user.id}&authority=${mockAuthority}`,
-      authority: mockAuthority,
+    // Error handling with descriptive messages
+    console.error("[ZIBAL GATEWAY ERROR]", zibalData);
+    let errorMessage = "خطا در اتصال به درگاه پرداخت زیبال.";
+    if (zibalData?.result === 115) {
+      errorMessage = `خطای ۱۱۵ زیبال: ${zibalData.message || "آدرس IP سرور در پنل زیبال ثبت نشده است."}`;
+    } else if (zibalData?.result === 102) {
+      errorMessage = "کد مرچنت زیبال نامعتبر است یا هنوز فعال نشده است.";
+    } else if (zibalData?.message) {
+      errorMessage = `پاسخ درگاه: ${zibalData.message}`;
+    }
+
+    return res.status(400).json({
+      error: errorMessage,
+      result: zibalData?.result,
+      message: zibalData?.message,
     });
   } catch (err: any) {
     console.error("Error initiating online payment:", err);
-    return res.status(500).json({ error: "خطا در برقراری ارتباط با درگاه پرداخت." });
+    return res.status(500).json({ error: "خطا در برقراری ارتباط با درگاه پرداخت زیبال." });
   }
-});
+};
 
-// Online Payment Simulation
+app.post("/api/payment/zibal/request", authMiddleware, handleOnlinePaymentRequest);
+app.post("/api/payment/zarinpal/request", authMiddleware, handleOnlinePaymentRequest);
+app.post("/api/payment/request", authMiddleware, handleOnlinePaymentRequest);
+
+// Zibal Callback handler (Handles both GET and POST redirects from Zibal)
+const handleZibalCallback = async (req: any, res: any) => {
+  try {
+    const trackId = req.query.trackId || req.body?.trackId;
+    const success = req.query.success || req.body?.success;
+    const status = req.query.status || req.body?.status;
+    const userId = req.query.userId || req.body?.userId;
+
+    console.log(`[ZIBAL CALLBACK] برگشت از درگاه: trackId=${trackId}, success=${success}, status=${status}, userId=${userId}`);
+
+    if (String(success) === "1" && trackId && userId) {
+      const merchant =
+        process.env.ZIBAL_MERCHANT_KEY ||
+        process.env.MERCHANT_ID ||
+        "6addde0e944acf62f5fd1438";
+
+      const verifyRes = await fetch("https://gateway.zibal.ir/v1/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          merchant: merchant,
+          trackId: Number(trackId),
+        }),
+      });
+
+      const verifyData: any = await verifyRes.json();
+      console.log("[ZIBAL VERIFY RESULT]", verifyData);
+
+      // Result 100: Paid and verified; 201: Already verified
+      if (verifyData?.result === 100 || verifyData?.result === 201) {
+        const refNumber = verifyData.refNumber || trackId;
+        const cardNumber = verifyData.cardNumber || "";
+        await updateUserPayment(String(userId), true, "paid", String(refNumber), cardNumber);
+        console.log(`[PAYMENT SUCCESS] پرداخت کاربر ${userId} با موفقیت تایید شد. شماره تراکنش: ${refNumber}`);
+        return res.redirect(`https://koochify.ir/?payment=success&ref=${refNumber}`);
+      } else {
+        console.warn(`[ZIBAL VERIFY FAILED] تراکنش تایید نشد: ${verifyData?.result} - ${verifyData?.message}`);
+        return res.redirect(`https://koochify.ir/?payment=failed&status=${verifyData?.result || status}`);
+      }
+    }
+
+    return res.redirect(`https://koochify.ir/?payment=cancelled&status=${status || "cancelled"}`);
+  } catch (err: any) {
+    console.error("Error in Zibal callback handler:", err);
+    return res.redirect("https://koochify.ir/?payment=error");
+  }
+};
+
+app.get("/api/payment/zibal/callback", handleZibalCallback);
+app.post("/api/payment/zibal/callback", handleZibalCallback);
+app.get("/api/payment/zarinpal/callback", handleZibalCallback);
+app.get("/api/payment/callback", handleZibalCallback);
+
+// Online Payment Simulation (Optional local dev fallback)
 app.get("/api/payment/simulate", async (req: any, res) => {
   const { userId, authority } = req.query;
   if (userId) {
@@ -392,40 +464,6 @@ app.get("/api/payment/simulate", async (req: any, res) => {
     console.log(`[PAYMENT] پرداخت آنلاین آزمایشی تایید شد برای کاربر: ${userId}`);
   }
   return res.redirect("/?payment=success");
-});
-
-// ZarinPal Callback handler
-app.get("/api/payment/zarinpal/callback", async (req: any, res) => {
-  const { Authority, Status, userId } = req.query;
-  if (Status === "OK" && userId) {
-    const merchantId = process.env.MERCHANT_ID;
-    let refId = String(Authority);
-
-    if (merchantId && merchantId.length >= 30) {
-      try {
-        const verifyRes = await fetch("https://api.zarinpal.com/pg/v4/payment/verify.json", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            merchant_id: merchantId,
-            amount: 4990000,
-            authority: Authority,
-          }),
-        });
-        const verifyData: any = await verifyRes.json();
-        if (verifyData?.data?.ref_id) {
-          refId = String(verifyData.data.ref_id);
-        }
-      } catch (vErr) {
-        console.error("ZarinPal verify error:", vErr);
-      }
-    }
-
-    await updateUserPayment(String(userId), true, "paid", refId);
-    return res.redirect("/?payment=success");
-  }
-
-  return res.redirect("/?payment=cancelled");
 });
 
 // --- Admin Leads Routes ---

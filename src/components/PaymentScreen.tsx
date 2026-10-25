@@ -20,6 +20,7 @@ import {
   fetchPaymentConfig,
   submitCardToCardPayment,
   instantUnlockPayment,
+  requestOnlinePayment,
   PaymentConfig
 } from "../services/authService";
 
@@ -63,6 +64,13 @@ export default function PaymentScreen({
     setIsLoading(true);
 
     try {
+      if (config?.hasOnlineGateway) {
+        const res = await requestOnlinePayment();
+        if (res.paymentUrl) {
+          window.location.href = res.paymentUrl;
+          return;
+        }
+      }
       const res = await instantUnlockPayment();
       setSuccessMessage(res.message);
       onPaymentSuccess(res.user);
