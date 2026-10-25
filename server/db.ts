@@ -78,81 +78,124 @@ if (isSupabaseConfigured) {
 }
 
 // -----------------------------------------------------------------------------
-// 2. SQLite Lazy Fallback for Local Dev & Offline Tests
+// 2. Storage Strategy: Supabase (Primary) -> SQLite (Local Dev) -> In-Memory (Serverless Fallback)
 // -----------------------------------------------------------------------------
+
+export interface MemoryOtp {
+  id: string;
+  phoneNumber: string;
+  code: string;
+  expiresAt: number;
+  used: boolean;
+  createdAt: string;
+}
+
+export interface MemorySession {
+  id: string;
+  userId: string;
+  token: string;
+  expiresAt: number;
+  createdAt: string;
+}
+
+export const inMemoryStore = {
+  otps: new Map<string, MemoryOtp>(),
+  users: new Map<string, User>(),
+  usersByPhone: new Map<string, string>(), // phone -> userId
+  sessions: new Map<string, MemorySession>(),
+  assessments: new Map<string, UserAssessmentRecord>(),
+};
+
 let sqliteDb: any = null;
+let isSqliteAvailable: boolean | null = null;
 
 function getSqliteDb() {
+  if (isSqliteAvailable === false) return null;
+  // Never attempt file-based SQLite in Serverless/Vercel environments (read-only filesystem, missing node:sqlite)
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    isSqliteAvailable = false;
+    return null;
+  }
   if (!sqliteDb) {
-    // Dynamic import/initialization to avoid unnecessary file handles on Vercel
-    const { DatabaseSync } = requireModule("node:sqlite");
-    const DATA_DIR = path.join(process.cwd(), "data");
-    if (!fs.existsSync(DATA_DIR)) {
-      try {
-        fs.mkdirSync(DATA_DIR, { recursive: true });
-      } catch { }
-    }
-    const DB_PATH = path.join(DATA_DIR, "koochify.db");
-    sqliteDb = new DatabaseSync(DB_PATH);
     try {
-      sqliteDb.exec("PRAGMA journal_mode = WAL;");
-      sqliteDb.exec("PRAGMA foreign_keys = ON;");
-    } catch { }
+      const { DatabaseSync } = requireModule("node:sqlite");
+      if (!DatabaseSync) {
+        isSqliteAvailable = false;
+        return null;
+      }
+      const DATA_DIR = path.join(process.cwd(), "data");
+      if (!fs.existsSync(DATA_DIR)) {
+        try {
+          fs.mkdirSync(DATA_DIR, { recursive: true });
+        } catch { }
+      }
+      const DB_PATH = path.join(DATA_DIR, "koochify.db");
+      sqliteDb = new DatabaseSync(DB_PATH);
+      try {
+        sqliteDb.exec("PRAGMA journal_mode = WAL;");
+        sqliteDb.exec("PRAGMA foreign_keys = ON;");
+      } catch { }
 
-    // Init SQLite Schema
-    sqliteDb.exec(`
-      CREATE TABLE IF NOT EXISTS users (
-        id TEXT PRIMARY KEY,
-        phone_number TEXT UNIQUE NOT NULL,
-        full_name TEXT NOT NULL DEFAULT '',
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        last_login_at TEXT,
-        is_paid INTEGER NOT NULL DEFAULT 0,
-        payment_status TEXT NOT NULL DEFAULT 'none',
-        payment_ref TEXT,
-        card_last_digits TEXT,
-        paid_at TEXT
-      );
+      // Init SQLite Schema
+      sqliteDb.exec(`
+        CREATE TABLE IF NOT EXISTS users (
+          id TEXT PRIMARY KEY,
+          phone_number TEXT UNIQUE NOT NULL,
+          full_name TEXT NOT NULL DEFAULT '',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          last_login_at TEXT,
+          is_paid INTEGER NOT NULL DEFAULT 0,
+          payment_status TEXT NOT NULL DEFAULT 'none',
+          payment_ref TEXT,
+          card_last_digits TEXT,
+          paid_at TEXT
+        );
 
-      CREATE TABLE IF NOT EXISTS otps (
-        id TEXT PRIMARY KEY,
-        phone_number TEXT NOT NULL,
-        code TEXT NOT NULL,
-        expires_at INTEGER NOT NULL,
-        used INTEGER NOT NULL DEFAULT 0,
-        created_at TEXT NOT NULL
-      );
+        CREATE TABLE IF NOT EXISTS otps (
+          id TEXT PRIMARY KEY,
+          phone_number TEXT NOT NULL,
+          code TEXT NOT NULL,
+          expires_at INTEGER NOT NULL,
+          used INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL
+        );
 
-      CREATE TABLE IF NOT EXISTS sessions (
-        id TEXT PRIMARY KEY,
-        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        token TEXT UNIQUE NOT NULL,
-        expires_at INTEGER NOT NULL,
-        created_at TEXT NOT NULL
-      );
+        CREATE TABLE IF NOT EXISTS sessions (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          token TEXT UNIQUE NOT NULL,
+          expires_at INTEGER NOT NULL,
+          created_at TEXT NOT NULL
+        );
 
-      CREATE TABLE IF NOT EXISTS user_assessments (
-        id TEXT PRIMARY KEY,
-        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        title TEXT NOT NULL,
-        profile_data TEXT NOT NULL,
-        results_data TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
+        CREATE TABLE IF NOT EXISTS user_assessments (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          title TEXT NOT NULL,
+          profile_data TEXT NOT NULL,
+          results_data TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
 
-      CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone_number);
-      CREATE INDEX IF NOT EXISTS idx_otps_phone ON otps(phone_number);
-      CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token);
-      CREATE INDEX IF NOT EXISTS idx_assessments_user ON user_assessments(user_id);
-    `);
+        CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone_number);
+        CREATE INDEX IF NOT EXISTS idx_otps_phone ON otps(phone_number);
+        CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token);
+        CREATE INDEX IF NOT EXISTS idx_assessments_user ON user_assessments(user_id);
+      `);
 
-    try { sqliteDb.exec("ALTER TABLE users ADD COLUMN is_paid INTEGER NOT NULL DEFAULT 0;"); } catch { }
-    try { sqliteDb.exec("ALTER TABLE users ADD COLUMN payment_status TEXT NOT NULL DEFAULT 'none';"); } catch { }
-    try { sqliteDb.exec("ALTER TABLE users ADD COLUMN payment_ref TEXT;"); } catch { }
-    try { sqliteDb.exec("ALTER TABLE users ADD COLUMN card_last_digits TEXT;"); } catch { }
-    try { sqliteDb.exec("ALTER TABLE users ADD COLUMN paid_at TEXT;"); } catch { }
+      try { sqliteDb.exec("ALTER TABLE users ADD COLUMN is_paid INTEGER NOT NULL DEFAULT 0;"); } catch { }
+      try { sqliteDb.exec("ALTER TABLE users ADD COLUMN payment_status TEXT NOT NULL DEFAULT 'none';"); } catch { }
+      try { sqliteDb.exec("ALTER TABLE users ADD COLUMN payment_ref TEXT;"); } catch { }
+      try { sqliteDb.exec("ALTER TABLE users ADD COLUMN card_last_digits TEXT;"); } catch { }
+      try { sqliteDb.exec("ALTER TABLE users ADD COLUMN paid_at TEXT;"); } catch { }
+      isSqliteAvailable = true;
+    } catch (e) {
+      console.warn("ℹ️ [DATABASE] SQLite محلی در دسترس نیست؛ در حال استفاده از حافظه موقت (In-Memory).");
+      isSqliteAvailable = false;
+      return null;
+    }
   }
   return sqliteDb;
 }
@@ -259,11 +302,24 @@ export async function createOtp(phoneNumber: string): Promise<{ code: string; ex
 
   // SQLite fallback
   const db = getSqliteDb();
-  const stmt = db.prepare(`
-    INSERT INTO otps (id, phone_number, code, expires_at, used, created_at)
-    VALUES (?, ?, ?, ?, 0, ?)
-  `);
-  stmt.run(id, normPhone, code, expiresAt, now);
+  if (db) {
+    const stmt = db.prepare(`
+      INSERT INTO otps (id, phone_number, code, expires_at, used, created_at)
+      VALUES (?, ?, ?, ?, 0, ?)
+    `);
+    stmt.run(id, normPhone, code, expiresAt, now);
+    return { code, expiresAt };
+  }
+
+  // In-Memory Fallback (Vercel / Serverless)
+  inMemoryStore.otps.set(id, {
+    id,
+    phoneNumber: normPhone,
+    code,
+    expiresAt,
+    used: false,
+    createdAt: now,
+  });
   return { code, expiresAt };
 }
 
@@ -299,18 +355,31 @@ export async function verifyOtpCode(phoneNumber: string, code: string): Promise<
 
   // SQLite fallback
   const db = getSqliteDb();
-  const stmt = db.prepare(`
-    SELECT id FROM otps
-    WHERE phone_number = ? AND code = ? AND used = 0 AND expires_at > ?
-    ORDER BY created_at DESC
-    LIMIT 1
-  `);
-  const record = stmt.get(normPhone, cleanCode, now) as { id: string } | undefined;
-  if (!record) return false;
+  if (db) {
+    const stmt = db.prepare(`
+      SELECT id FROM otps
+      WHERE phone_number = ? AND code = ? AND used = 0 AND expires_at > ?
+      ORDER BY created_at DESC
+      LIMIT 1
+    `);
+    const record = stmt.get(normPhone, cleanCode, now) as { id: string } | undefined;
+    if (!record) return false;
 
-  const updateStmt = db.prepare(`UPDATE otps SET used = 1 WHERE id = ?`);
-  updateStmt.run(record.id);
-  return true;
+    const updateStmt = db.prepare(`UPDATE otps SET used = 1 WHERE id = ?`);
+    updateStmt.run(record.id);
+    return true;
+  }
+
+  // In-Memory Fallback (Vercel / Serverless)
+  const allOtps = Array.from(inMemoryStore.otps.values());
+  for (let i = allOtps.length - 1; i >= 0; i--) {
+    const item = allOtps[i];
+    if (item.phoneNumber === normPhone && item.code === cleanCode && !item.used && item.expiresAt > now) {
+      item.used = true;
+      return true;
+    }
+  }
+  return false;
 }
 
 /**
@@ -372,35 +441,67 @@ export async function findOrCreateUser(phoneNumber: string, fullName?: string): 
 
   // SQLite fallback
   const db = getSqliteDb();
-  const selectStmt = db.prepare(`SELECT * FROM users WHERE phone_number = ?`);
-  const existing = selectStmt.get(normPhone);
+  if (db) {
+    const selectStmt = db.prepare(`SELECT * FROM users WHERE phone_number = ?`);
+    const existing = selectStmt.get(normPhone);
 
-  if (existing) {
-    if (fullName && fullName.trim()) {
-      const updateStmt = db.prepare(`
-        UPDATE users 
-        SET full_name = ?, updated_at = ?, last_login_at = ?
-        WHERE phone_number = ?
-      `);
-      updateStmt.run(fullName.trim(), now, now, normPhone);
-    } else {
-      const updateLoginStmt = db.prepare(`
-        UPDATE users SET last_login_at = ? WHERE phone_number = ?
-      `);
-      updateLoginStmt.run(now, normPhone);
+    if (existing) {
+      if (fullName && fullName.trim()) {
+        const updateStmt = db.prepare(`
+          UPDATE users 
+          SET full_name = ?, updated_at = ?, last_login_at = ?
+          WHERE phone_number = ?
+        `);
+        updateStmt.run(fullName.trim(), now, now, normPhone);
+      } else {
+        const updateLoginStmt = db.prepare(`
+          UPDATE users SET last_login_at = ? WHERE phone_number = ?
+        `);
+        updateLoginStmt.run(now, normPhone);
+      }
+      const refreshed = selectStmt.get(normPhone);
+      return mapSqliteUser(refreshed);
     }
-    const refreshed = selectStmt.get(normPhone);
-    return mapSqliteUser(refreshed);
+
+    const newId = "usr_" + crypto.randomUUID().replace(/-/g, "").substring(0, 16);
+    const insertStmt = db.prepare(`
+      INSERT INTO users (id, phone_number, full_name, created_at, updated_at, last_login_at, is_paid, payment_status)
+      VALUES (?, ?, ?, ?, ?, ?, 0, 'none')
+    `);
+    insertStmt.run(newId, normPhone, fullName?.trim() || "", now, now, now);
+    const created = selectStmt.get(normPhone);
+    return mapSqliteUser(created);
+  }
+
+  // In-Memory Fallback (Vercel / Serverless)
+  const existingUserId = inMemoryStore.usersByPhone.get(normPhone);
+  if (existingUserId && inMemoryStore.users.has(existingUserId)) {
+    const user = inMemoryStore.users.get(existingUserId)!;
+    if (fullName && fullName.trim()) {
+      user.fullName = fullName.trim();
+    }
+    user.updatedAt = now;
+    user.lastLoginAt = now;
+    return user;
   }
 
   const newId = "usr_" + crypto.randomUUID().replace(/-/g, "").substring(0, 16);
-  const insertStmt = db.prepare(`
-    INSERT INTO users (id, phone_number, full_name, created_at, updated_at, last_login_at, is_paid, payment_status)
-    VALUES (?, ?, ?, ?, ?, ?, 0, 'none')
-  `);
-  insertStmt.run(newId, normPhone, fullName?.trim() || "", now, now, now);
-  const created = selectStmt.get(normPhone);
-  return mapSqliteUser(created);
+  const newUser: User = {
+    id: newId,
+    phoneNumber: normPhone,
+    fullName: fullName?.trim() || "",
+    createdAt: now,
+    updatedAt: now,
+    lastLoginAt: now,
+    isPaid: false,
+    paymentStatus: "none",
+    paymentRef: null,
+    cardLastDigits: null,
+    paidAt: null,
+  };
+  inMemoryStore.users.set(newId, newUser);
+  inMemoryStore.usersByPhone.set(normPhone, newId);
+  return newUser;
 }
 
 /**
@@ -413,9 +514,13 @@ export async function findUserById(userId: string): Promise<User | null> {
   }
 
   const db = getSqliteDb();
-  const stmt = db.prepare(`SELECT * FROM users WHERE id = ?`);
-  const row = stmt.get(userId);
-  return row ? mapSqliteUser(row) : null;
+  if (db) {
+    const stmt = db.prepare(`SELECT * FROM users WHERE id = ?`);
+    const row = stmt.get(userId);
+    return row ? mapSqliteUser(row) : null;
+  }
+
+  return inMemoryStore.users.get(userId) || null;
 }
 
 /**
@@ -435,11 +540,21 @@ export async function updateUserProfile(userId: string, fullName: string): Promi
   }
 
   const db = getSqliteDb();
-  const stmt = db.prepare(`
-    UPDATE users SET full_name = ?, updated_at = ? WHERE id = ?
-  `);
-  stmt.run(fullName.trim(), now, userId);
-  return findUserById(userId);
+  if (db) {
+    const stmt = db.prepare(`
+      UPDATE users SET full_name = ?, updated_at = ? WHERE id = ?
+    `);
+    stmt.run(fullName.trim(), now, userId);
+    return findUserById(userId);
+  }
+
+  const user = inMemoryStore.users.get(userId);
+  if (user) {
+    user.fullName = fullName.trim();
+    user.updatedAt = now;
+    return user;
+  }
+  return null;
 }
 
 /**
@@ -476,32 +591,47 @@ export async function updateUserPayment(
   }
 
   const db = getSqliteDb();
-  let query = `
-    UPDATE users 
-    SET is_paid = ?, payment_status = ?, updated_at = ?
-  `;
-  const params: any[] = [isPaid ? 1 : 0, paymentStatus, now];
+  if (db) {
+    let query = `
+      UPDATE users 
+      SET is_paid = ?, payment_status = ?, updated_at = ?
+    `;
+    const params: any[] = [isPaid ? 1 : 0, paymentStatus, now];
 
-  if (paymentRef !== undefined) {
-    query += `, payment_ref = ?`;
-    params.push(paymentRef);
+    if (paymentRef !== undefined) {
+      query += `, payment_ref = ?`;
+      params.push(paymentRef);
+    }
+    if (cardLastDigits !== undefined) {
+      query += `, card_last_digits = ?`;
+      params.push(cardLastDigits);
+    }
+    if (isPaid) {
+      query += `, paid_at = ?`;
+      params.push(now);
+    }
+
+    query += ` WHERE id = ?`;
+    params.push(userId);
+
+    const stmt = db.prepare(query);
+    stmt.run(...params);
+
+    return findUserById(userId);
   }
-  if (cardLastDigits !== undefined) {
-    query += `, card_last_digits = ?`;
-    params.push(cardLastDigits);
+
+  // In-Memory Fallback
+  const user = inMemoryStore.users.get(userId);
+  if (user) {
+    user.isPaid = isPaid;
+    user.paymentStatus = paymentStatus;
+    user.updatedAt = now;
+    if (paymentRef !== undefined) user.paymentRef = paymentRef;
+    if (cardLastDigits !== undefined) user.cardLastDigits = cardLastDigits;
+    if (isPaid) user.paidAt = now;
+    return user;
   }
-  if (isPaid) {
-    query += `, paid_at = ?`;
-    params.push(now);
-  }
-
-  query += ` WHERE id = ?`;
-  params.push(userId);
-
-  const stmt = db.prepare(query);
-  stmt.run(...params);
-
-  return findUserById(userId);
+  return null;
 }
 
 /**
@@ -525,11 +655,22 @@ export async function createSession(userId: string): Promise<{ token: string; ex
   }
 
   const db = getSqliteDb();
-  const stmt = db.prepare(`
-    INSERT INTO sessions (id, user_id, token, expires_at, created_at)
-    VALUES (?, ?, ?, ?, ?)
-  `);
-  stmt.run(id, userId, token, expiresAt, now);
+  if (db) {
+    const stmt = db.prepare(`
+      INSERT INTO sessions (id, user_id, token, expires_at, created_at)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+    stmt.run(id, userId, token, expiresAt, now);
+    return { token, expiresAt };
+  }
+
+  inMemoryStore.sessions.set(token, {
+    id,
+    userId,
+    token,
+    expiresAt,
+    createdAt: now,
+  });
   return { token, expiresAt };
 }
 
@@ -553,14 +694,22 @@ export async function getUserByToken(token: string): Promise<User | null> {
   }
 
   const db = getSqliteDb();
-  const stmt = db.prepare(`
-    SELECT u.* FROM users u
-    JOIN sessions s ON u.id = s.user_id
-    WHERE s.token = ? AND s.expires_at > ?
-    LIMIT 1
-  `);
-  const row = stmt.get(token, now);
-  return row ? mapSqliteUser(row) : null;
+  if (db) {
+    const stmt = db.prepare(`
+      SELECT u.* FROM users u
+      JOIN sessions s ON u.id = s.user_id
+      WHERE s.token = ? AND s.expires_at > ?
+      LIMIT 1
+    `);
+    const row = stmt.get(token, now);
+    return row ? mapSqliteUser(row) : null;
+  }
+
+  const session = inMemoryStore.sessions.get(token);
+  if (!session || session.expiresAt <= now) {
+    return null;
+  }
+  return inMemoryStore.users.get(session.userId) || null;
 }
 
 /**
@@ -573,8 +722,13 @@ export async function deleteSession(token: string): Promise<boolean> {
   }
 
   const db = getSqliteDb();
-  const stmt = db.prepare(`DELETE FROM sessions WHERE token = ?`);
-  stmt.run(token);
+  if (db) {
+    const stmt = db.prepare(`DELETE FROM sessions WHERE token = ?`);
+    stmt.run(token);
+    return true;
+  }
+
+  inMemoryStore.sessions.delete(token);
   return true;
 }
 
@@ -619,21 +773,33 @@ export async function saveAssessment(
   }
 
   const db = getSqliteDb();
-  const stmt = db.prepare(`
-    INSERT INTO user_assessments (id, user_id, title, profile_data, results_data, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `);
-  stmt.run(
-    newId,
-    userId,
-    finalTitle,
-    JSON.stringify(profileData),
-    JSON.stringify(resultsData),
-    now,
-    now
-  );
+  if (db) {
+    const stmt = db.prepare(`
+      INSERT INTO user_assessments (id, user_id, title, profile_data, results_data, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+    stmt.run(
+      newId,
+      userId,
+      finalTitle,
+      JSON.stringify(profileData),
+      JSON.stringify(resultsData),
+      now,
+      now
+    );
 
-  return {
+    return {
+      id: newId,
+      userId,
+      title: finalTitle,
+      profileData,
+      resultsData,
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+
+  const record: UserAssessmentRecord = {
     id: newId,
     userId,
     title: finalTitle,
@@ -642,6 +808,8 @@ export async function saveAssessment(
     createdAt: now,
     updatedAt: now,
   };
+  inMemoryStore.assessments.set(newId, record);
+  return record;
 }
 
 /**
@@ -666,29 +834,43 @@ export async function getUserAssessments(userId: string): Promise<any[]> {
   }
 
   const db = getSqliteDb();
-  const stmt = db.prepare(`
-    SELECT id, title, created_at, updated_at, results_data, profile_data 
-    FROM user_assessments 
-    WHERE user_id = ? 
-    ORDER BY created_at DESC
-  `);
-  const rows = stmt.all(userId) as any[];
+  if (db) {
+    const stmt = db.prepare(`
+      SELECT id, title, created_at, updated_at, results_data, profile_data 
+      FROM user_assessments 
+      WHERE user_id = ? 
+      ORDER BY created_at DESC
+    `);
+    const rows = stmt.all(userId) as any[];
 
-  return rows.map((r) => {
-    let parsedResults: any = {};
-    let parsedProfile: any = {};
-    try { parsedResults = JSON.parse(r.results_data); } catch { }
-    try { parsedProfile = JSON.parse(r.profile_data); } catch { }
+    return rows.map((r) => {
+      let parsedResults: any = {};
+      let parsedProfile: any = {};
+      try { parsedResults = JSON.parse(r.results_data); } catch { }
+      try { parsedProfile = JSON.parse(r.profile_data); } catch { }
 
-    return {
+      return {
+        id: r.id,
+        title: r.title,
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
+        primaryDestinations: parsedResults.primaryDestinations || [],
+        migrationGoal: parsedProfile.migrationGoal || "both",
+      };
+    });
+  }
+
+  return Array.from(inMemoryStore.assessments.values())
+    .filter((a) => a.userId === userId)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .map((r) => ({
       id: r.id,
       title: r.title,
-      createdAt: r.created_at,
-      updatedAt: r.updated_at,
-      primaryDestinations: parsedResults.primaryDestinations || [],
-      migrationGoal: parsedProfile.migrationGoal || "both",
-    };
-  });
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+      primaryDestinations: r.resultsData?.primaryDestinations || [],
+      migrationGoal: r.profileData?.migrationGoal || "both",
+    }));
 }
 
 /**
@@ -716,21 +898,29 @@ export async function getUserAssessmentById(id: string, userId: string): Promise
   }
 
   const db = getSqliteDb();
-  const stmt = db.prepare(`
-    SELECT * FROM user_assessments WHERE id = ? AND user_id = ?
-  `);
-  const row = stmt.get(id, userId) as any;
-  if (!row) return null;
+  if (db) {
+    const stmt = db.prepare(`
+      SELECT * FROM user_assessments WHERE id = ? AND user_id = ?
+    `);
+    const row = stmt.get(id, userId) as any;
+    if (!row) return null;
 
-  return {
-    id: row.id,
-    userId: row.user_id,
-    title: row.title,
-    profileData: JSON.parse(row.profile_data),
-    resultsData: JSON.parse(row.results_data),
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
+    return {
+      id: row.id,
+      userId: row.user_id,
+      title: row.title,
+      profileData: JSON.parse(row.profile_data),
+      resultsData: JSON.parse(row.results_data),
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
+  }
+
+  const record = inMemoryStore.assessments.get(id);
+  if (record && record.userId === userId) {
+    return record;
+  }
+  return null;
 }
 
 /**
@@ -747,11 +937,20 @@ export async function deleteUserAssessment(id: string, userId: string): Promise<
   }
 
   const db = getSqliteDb();
-  const stmt = db.prepare(`
-    DELETE FROM user_assessments WHERE id = ? AND user_id = ?
-  `);
-  stmt.run(id, userId);
-  return true;
+  if (db) {
+    const stmt = db.prepare(`
+      DELETE FROM user_assessments WHERE id = ? AND user_id = ?
+    `);
+    stmt.run(id, userId);
+    return true;
+  }
+
+  const record = inMemoryStore.assessments.get(id);
+  if (record && record.userId === userId) {
+    inMemoryStore.assessments.delete(id);
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -820,48 +1019,87 @@ export async function getAllLeadsForAdmin(): Promise<AdminLeadItem[]> {
 
   // SQLite fallback
   const db = getSqliteDb();
-  const usersStmt = db.prepare(`
-    SELECT * FROM users ORDER BY created_at DESC
-  `);
-  const users = usersStmt.all() as any[];
-
-  return users.map((u) => {
-    const asmtStmt = db.prepare(`
-      SELECT results_data FROM user_assessments 
-      WHERE user_id = ? 
-      ORDER BY created_at DESC
+  if (db) {
+    const usersStmt = db.prepare(`
+      SELECT * FROM users ORDER BY created_at DESC
     `);
-    const asmts = asmtStmt.all(u.id) as any[];
-    const assessmentsCount = asmts.length;
+    const users = usersStmt.all() as any[];
+
+    return users.map((u) => {
+      const asmtStmt = db.prepare(`
+        SELECT results_data FROM user_assessments 
+        WHERE user_id = ? 
+        ORDER BY created_at DESC
+      `);
+      const asmts = asmtStmt.all(u.id) as any[];
+      const assessmentsCount = asmts.length;
+
+      let latestDestination: string | null = null;
+      let latestRoute: string | null = null;
+      let latestScore: number | null = null;
+
+      if (assessmentsCount > 0) {
+        try {
+          const parsed = JSON.parse(asmts[0].results_data);
+          const topDest = parsed.primaryDestinations?.[0];
+          if (topDest) {
+            latestDestination = topDest.countryNameFa || topDest.countryCode || null;
+            latestRoute = topDest.routeNameFa || null;
+            latestScore = topDest.fitScore ?? null;
+          }
+        } catch { }
+      }
+
+      return {
+        id: u.id,
+        phoneNumber: u.phone_number,
+        fullName: u.full_name || "",
+        createdAt: u.created_at,
+        lastLoginAt: u.last_login_at || null,
+        isPaid: Boolean(u.is_paid),
+        paymentStatus: (u.payment_status || "none") as any,
+        paymentRef: u.payment_ref || null,
+        cardLastDigits: u.card_last_digits || null,
+        paidAt: u.paid_at || null,
+        assessmentsCount,
+        latestDestination,
+        latestRoute,
+        latestScore,
+      };
+    });
+  }
+
+  // In-Memory Fallback
+  return Array.from(inMemoryStore.users.values()).map((u) => {
+    const userAssessments = Array.from(inMemoryStore.assessments.values())
+      .filter((a) => a.userId === u.id)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     let latestDestination: string | null = null;
     let latestRoute: string | null = null;
     let latestScore: number | null = null;
 
-    if (assessmentsCount > 0) {
-      try {
-        const parsed = JSON.parse(asmts[0].results_data);
-        const topDest = parsed.primaryDestinations?.[0];
-        if (topDest) {
-          latestDestination = topDest.countryNameFa || topDest.countryCode || null;
-          latestRoute = topDest.routeNameFa || null;
-          latestScore = topDest.fitScore ?? null;
-        }
-      } catch { }
+    if (userAssessments.length > 0) {
+      const topDest = userAssessments[0].resultsData?.primaryDestinations?.[0];
+      if (topDest) {
+        latestDestination = topDest.countryNameFa || topDest.countryCode || null;
+        latestRoute = topDest.routeNameFa || null;
+        latestScore = topDest.fitScore ?? null;
+      }
     }
 
     return {
       id: u.id,
-      phoneNumber: u.phone_number,
-      fullName: u.full_name || "",
-      createdAt: u.created_at,
-      lastLoginAt: u.last_login_at || null,
-      isPaid: Boolean(u.is_paid),
-      paymentStatus: (u.payment_status || "none") as any,
-      paymentRef: u.payment_ref || null,
-      cardLastDigits: u.card_last_digits || null,
-      paidAt: u.paid_at || null,
-      assessmentsCount,
+      phoneNumber: u.phoneNumber,
+      fullName: u.fullName || "",
+      createdAt: u.createdAt,
+      lastLoginAt: u.lastLoginAt || null,
+      isPaid: Boolean(u.isPaid),
+      paymentStatus: (u.paymentStatus || "none") as any,
+      paymentRef: u.paymentRef || null,
+      cardLastDigits: u.cardLastDigits || null,
+      paidAt: u.paidAt || null,
+      assessmentsCount: userAssessments.length,
       latestDestination,
       latestRoute,
       latestScore,

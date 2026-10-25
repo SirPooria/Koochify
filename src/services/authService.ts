@@ -121,6 +121,39 @@ export function clearAuthSession() {
 }
 
 /**
+ * Safely parses response as JSON, falling back to clean error message if server returns HTML or text
+ */
+async function parseJsonResponse<T = any>(res: Response, fallbackError: string): Promise<T> {
+  const contentType = res.headers.get("content-type") || "";
+  let data: any = null;
+
+  if (contentType.includes("application/json")) {
+    try {
+      data = await res.json();
+    } catch {
+      data = null;
+    }
+  }
+
+  if (!res.ok) {
+    if (data && data.error) {
+      throw new Error(data.error);
+    }
+    const rawText = await res.text().catch(() => "");
+    if (rawText && rawText.length > 0 && rawText.length < 150 && !rawText.includes("<")) {
+      throw new Error(rawText);
+    }
+    throw new Error(fallbackError);
+  }
+
+  if (!data) {
+    throw new Error(fallbackError);
+  }
+
+  return data;
+}
+
+/**
  * Send OTP verification code to phone number
  */
 export async function sendOtp(phoneNumber: string): Promise<{
@@ -135,12 +168,7 @@ export async function sendOtp(phoneNumber: string): Promise<{
     body: JSON.stringify({ phoneNumber }),
   });
 
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.error || "خطا در ارسال کد تأیید");
-  }
-
-  return data;
+  return await parseJsonResponse(res, "خطا در ارتباط با سرور ارسال پیامک کد تأیید");
 }
 
 /**
@@ -157,10 +185,10 @@ export async function verifyOtp(
     body: JSON.stringify({ phoneNumber, code, fullName }),
   });
 
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.error || "کد تأیید نامعتبر است");
-  }
+  const data = await parseJsonResponse<{ success: boolean; user: AuthUser; token: string }>(
+    res,
+    "کد تأیید نامعتبر است یا منقضی شده است"
+  );
 
   saveAuthSession(data.token, data.user);
   return data;
@@ -185,8 +213,13 @@ export async function fetchCurrentUser(): Promise<AuthUser | null> {
       return null;
     }
 
-    const data = await res.json();
-    if (data.user) {
+    if (!res.ok) return getStoredUser();
+
+    const contentType = res.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) return getStoredUser();
+
+    const data = await res.json().catch(() => null);
+    if (data?.user) {
       localStorage.setItem(USER_KEY, JSON.stringify(data.user));
       return data.user;
     }

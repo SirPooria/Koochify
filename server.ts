@@ -1,6 +1,5 @@
 import express from "express";
 import path from "path";
-import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 import {
@@ -94,6 +93,19 @@ app.post("/api/auth/send-otp", async (req, res) => {
 
     if (!smsResult.success && !smsResult.simulated) {
       console.error(`[AUTH] خطا در ارسال پیامک ملی‌پیامک به ${normPhone}:`, smsResult.error);
+
+      // Fallback for development/testing if Melipayamak panel is temporarily out of credit
+      if (process.env.ALLOW_SIMULATED_OTP === "true" || process.env.NODE_ENV !== "production") {
+        console.warn(`[SMS FALLBACK] به دلیل خطای پنل (${smsResult.error})، کد ورود برای تست ارائه شد: ${code}`);
+        return res.json({
+          success: true,
+          message: `کد تأیید برای تست: ${code} (توجه: ${smsResult.error})`,
+          phoneNumber: normPhone,
+          expiresAt,
+          devCode: code,
+        });
+      }
+
       return res.status(502).json({
         error: smsResult.error || "خطا در ارسال پیامک کد تأیید از طرف سامانه ملی‌پیامک.",
         code: smsResult.code,
@@ -105,7 +117,7 @@ app.post("/api/auth/send-otp", async (req, res) => {
       message: `کد تأیید ۵ رقمی به شماره ${normPhone} پیامک شد.`,
       phoneNumber: normPhone,
       expiresAt,
-      // devCode is only passed in simulation/offline mode
+      // devCode is passed in simulation/offline mode
       ...(smsResult.simulated ? { devCode: code } : {}),
     });
   } catch (err: any) {
@@ -791,8 +803,9 @@ function getGeminiClient(): GoogleGenAI {
 export async function startServer() {
   const PORT = Number(process.env.PORT) || 3001;
 
-  // Vite integration
+  // Vite integration (dynamic import so it is never bundled in production/serverless)
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
