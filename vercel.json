@@ -14,7 +14,27 @@
       "destination": "/api"
     },
     {
-      "source": "/((?!api|.*\\.[\\w]+$).*)",
+      "source": "/37583893.txt",
+      "destination": "/37583893.txt"
+    },
+    {
+      "source": "/google29043ff9460cc375.html",
+      "destination": "/google29043ff9460cc375.html"
+    },
+    {
+      "source": "/robots.txt",
+      "destination": "/robots.txt"
+    },
+    {
+      "source": "/sitemap.xml",
+      "destination": "/sitemap.xml"
+    },
+    {
+      "source": "/llms.txt",
+      "destination": "/llms.txt"
+    },
+    {
+      "source": "/((?!api|37583893\\.txt|google29043ff9460cc375\\.html|robots\\.txt|sitemap\\.xml|llms\\.txt).*)",
       "destination": "/index.html"
     }
   ]

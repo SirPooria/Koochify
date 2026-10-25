@@ -41,6 +41,11 @@ app.get("/37583893.txt", (req, res) => {
   return res.type("text/plain").status(200).send("");
 });
 
+// Google Search Console Verification Endpoint
+app.get("/google29043ff9460cc375.html", (req, res) => {
+  return res.type("text/html").status(200).send("google-site-verification: google29043ff9460cc375.html");
+});
+
 // SMS Provider Status Ping
 app.get("/api/sms/status", (req, res) => {
   const username =
