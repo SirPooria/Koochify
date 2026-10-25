@@ -1,12 +1,8 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import path from "node:path";
-import fs from "node:fs";
 import crypto from "node:crypto";
-import { createRequire } from "node:module";
+import dotenv from "dotenv";
 
-const requireModule = typeof require === "function"
-  ? require
-  : createRequire(typeof import.meta !== "undefined" && import.meta.url ? import.meta.url : `file://${process.cwd()}/`);
+dotenv.config();
 
 export interface User {
   id: string;
@@ -50,11 +46,26 @@ export interface UserAssessmentRecord {
   updatedAt: string;
 }
 
+export interface PaymentTransactionRecord {
+  id: string;
+  userId: string | null;
+  amountTomans: number;
+  amountRials: number;
+  gateway: string;
+  trackId: string | null;
+  refNumber: string | null;
+  cardPan: string | null;
+  status: "pending" | "verified" | "failed" | "cancelled";
+  rawResponse?: any;
+  createdAt: string;
+  verifiedAt: string | null;
+}
+
 // -----------------------------------------------------------------------------
-// 1. Supabase Client Setup (Server-Side Only via Service Role)
+// 1. Supabase Client Configuration (Production Database)
 // -----------------------------------------------------------------------------
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseUrl = process.env.SUPABASE_URL?.trim();
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
 
 export const isSupabaseConfigured = Boolean(
   supabaseUrl &&
@@ -63,146 +74,33 @@ export const isSupabaseConfigured = Boolean(
   supabaseServiceKey.length > 20
 );
 
+if (isSupabaseConfigured) {
+  console.log("⚡ [DATABASE] اتصال موفق به پایگاه داده ابری Supabase با کلید Service Role.");
+} else {
+  console.warn("⚠️ [DATABASE WARNING] متغیرهای SUPABASE_URL یا SUPABASE_SERVICE_ROLE_KEY در فایل .env یا متغیرهای سرور یافت نشدند!");
+}
+
 export const supabase: SupabaseClient | null = isSupabaseConfigured
   ? createClient(supabaseUrl!, supabaseServiceKey!, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-  })
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    })
   : null;
 
-if (isSupabaseConfigured) {
-  console.log("⚡ [DATABASE] متصل به Supabase ابری با دسترسی امن Service Role.");
-} else {
-  console.log("ℹ️ [DATABASE] متغیرهای Supabase یافت نشد؛ در حال استفاده از SQLite محلی برای توسعه آفلاین.");
-}
-
-// -----------------------------------------------------------------------------
-// 2. Storage Strategy: Supabase (Primary) -> SQLite (Local Dev) -> In-Memory (Serverless Fallback)
-// -----------------------------------------------------------------------------
-
-export interface MemoryOtp {
-  id: string;
-  phoneNumber: string;
-  code: string;
-  expiresAt: number;
-  used: boolean;
-  createdAt: string;
-}
-
-export interface MemorySession {
-  id: string;
-  userId: string;
-  token: string;
-  expiresAt: number;
-  createdAt: string;
-}
-
-export const inMemoryStore = {
-  otps: new Map<string, MemoryOtp>(),
+// Emergency fallback store for offline tests when Supabase is not configured
+const memoryFallbackStore = {
   users: new Map<string, User>(),
-  usersByPhone: new Map<string, string>(), // phone -> userId
-  sessions: new Map<string, MemorySession>(),
+  usersByPhone: new Map<string, string>(),
+  otps: new Map<string, { id: string; phoneNumber: string; code: string; expiresAt: number; used: boolean; createdAt: string }>(),
+  sessions: new Map<string, { id: string; userId: string; token: string; expiresAt: number; createdAt: string }>(),
   assessments: new Map<string, UserAssessmentRecord>(),
+  transactions: new Map<string, PaymentTransactionRecord>(),
 };
 
-let sqliteDb: any = null;
-let isSqliteAvailable: boolean | null = null;
-
-function getSqliteDb() {
-  if (isSqliteAvailable === false) return null;
-  // Never attempt file-based SQLite in Serverless/Vercel environments (read-only filesystem, missing node:sqlite)
-  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
-    isSqliteAvailable = false;
-    return null;
-  }
-  if (!sqliteDb) {
-    try {
-      const { DatabaseSync } = requireModule("node:sqlite");
-      if (!DatabaseSync) {
-        isSqliteAvailable = false;
-        return null;
-      }
-      const DATA_DIR = path.join(process.cwd(), "data");
-      if (!fs.existsSync(DATA_DIR)) {
-        try {
-          fs.mkdirSync(DATA_DIR, { recursive: true });
-        } catch { }
-      }
-      const DB_PATH = path.join(DATA_DIR, "koochify.db");
-      sqliteDb = new DatabaseSync(DB_PATH);
-      try {
-        sqliteDb.exec("PRAGMA journal_mode = WAL;");
-        sqliteDb.exec("PRAGMA foreign_keys = ON;");
-      } catch { }
-
-      // Init SQLite Schema
-      sqliteDb.exec(`
-        CREATE TABLE IF NOT EXISTS users (
-          id TEXT PRIMARY KEY,
-          phone_number TEXT UNIQUE NOT NULL,
-          full_name TEXT NOT NULL DEFAULT '',
-          created_at TEXT NOT NULL,
-          updated_at TEXT NOT NULL,
-          last_login_at TEXT,
-          is_paid INTEGER NOT NULL DEFAULT 0,
-          payment_status TEXT NOT NULL DEFAULT 'none',
-          payment_ref TEXT,
-          card_last_digits TEXT,
-          paid_at TEXT
-        );
-
-        CREATE TABLE IF NOT EXISTS otps (
-          id TEXT PRIMARY KEY,
-          phone_number TEXT NOT NULL,
-          code TEXT NOT NULL,
-          expires_at INTEGER NOT NULL,
-          used INTEGER NOT NULL DEFAULT 0,
-          created_at TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS sessions (
-          id TEXT PRIMARY KEY,
-          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-          token TEXT UNIQUE NOT NULL,
-          expires_at INTEGER NOT NULL,
-          created_at TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS user_assessments (
-          id TEXT PRIMARY KEY,
-          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-          title TEXT NOT NULL,
-          profile_data TEXT NOT NULL,
-          results_data TEXT NOT NULL,
-          created_at TEXT NOT NULL,
-          updated_at TEXT NOT NULL
-        );
-
-        CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone_number);
-        CREATE INDEX IF NOT EXISTS idx_otps_phone ON otps(phone_number);
-        CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token);
-        CREATE INDEX IF NOT EXISTS idx_assessments_user ON user_assessments(user_id);
-      `);
-
-      try { sqliteDb.exec("ALTER TABLE users ADD COLUMN is_paid INTEGER NOT NULL DEFAULT 0;"); } catch { }
-      try { sqliteDb.exec("ALTER TABLE users ADD COLUMN payment_status TEXT NOT NULL DEFAULT 'none';"); } catch { }
-      try { sqliteDb.exec("ALTER TABLE users ADD COLUMN payment_ref TEXT;"); } catch { }
-      try { sqliteDb.exec("ALTER TABLE users ADD COLUMN card_last_digits TEXT;"); } catch { }
-      try { sqliteDb.exec("ALTER TABLE users ADD COLUMN paid_at TEXT;"); } catch { }
-      isSqliteAvailable = true;
-    } catch (e) {
-      console.warn("ℹ️ [DATABASE] SQLite محلی در دسترس نیست؛ در حال استفاده از حافظه موقت (In-Memory).");
-      isSqliteAvailable = false;
-      return null;
-    }
-  }
-  return sqliteDb;
-}
-
 // -----------------------------------------------------------------------------
-// 3. Helper Functions & Mappings
+// 2. Data Helper & Mapping Functions
 // -----------------------------------------------------------------------------
 export function normalizePhoneNumber(rawInput: string): string {
   if (!rawInput) return "";
@@ -253,74 +151,38 @@ function mapSupabaseUser(row: any): User {
   };
 }
 
-function mapSqliteUser(row: any): User {
-  return {
-    id: row.id,
-    phoneNumber: row.phone_number,
-    fullName: row.full_name || "",
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-    lastLoginAt: row.last_login_at || null,
-    isPaid: Boolean(row.is_paid),
-    paymentStatus: (row.payment_status || "none") as any,
-    paymentRef: row.payment_ref || null,
-    cardLastDigits: row.card_last_digits || null,
-    paidAt: row.paid_at || null,
-  };
-}
-
-
 // -----------------------------------------------------------------------------
-// 4. Unified Data Access Operations (Supabase with SQLite Fallback)
+// 3. Database Operations (Direct Supabase Queries)
 // -----------------------------------------------------------------------------
 
 /**
- * Creates and stores a 5-digit OTP
+ * Creates and stores a 5-digit OTP in Supabase
  */
 export async function createOtp(phoneNumber: string): Promise<{ code: string; expiresAt: number }> {
   const normPhone = normalizePhoneNumber(phoneNumber);
   const code = String(Math.floor(10000 + Math.random() * 90000));
-  const expiresAt = Date.now() + 15 * 60 * 1000;
+  const expiresAt = Date.now() + 15 * 60 * 1000; // 15 minutes
   const now = new Date().toISOString();
   const id = "otp_" + crypto.randomUUID().replace(/-/g, "");
 
-  if (isSupabaseConfigured && supabase) {
-    try {
-      const { error } = await supabase.from("otps").insert({
-        id,
-        phone_number: normPhone,
-        code,
-        expires_at: expiresAt,
-        used: false,
-        created_at: now,
-      });
-      if (error) console.error("Supabase createOtp error:", error);
-      return { code, expiresAt };
-    } catch (e) {
-      console.warn("Supabase createOtp fallback to sqlite:", e);
+  if (supabase) {
+    const { error } = await supabase.from("otps").insert({
+      id,
+      phone_number: normPhone,
+      code,
+      expires_at: expiresAt,
+      used: false,
+      created_at: now,
+    });
+    if (error) {
+      console.error("❌ [SUPABASE ERROR] createOtp failed:", error.message, error.details);
+      throw new Error(`خطا در ذخیره کد ورود در دیتابیس: ${error.message}`);
     }
-  }
-
-  // SQLite fallback
-  const db = getSqliteDb();
-  if (db) {
-    const stmt = db.prepare(`
-      INSERT INTO otps (id, phone_number, code, expires_at, used, created_at)
-      VALUES (?, ?, ?, ?, 0, ?)
-    `);
-    stmt.run(id, normPhone, code, expiresAt, now);
     return { code, expiresAt };
   }
 
-  // In-Memory Fallback (Vercel / Serverless)
-  inMemoryStore.otps.set(id, {
-    id,
-    phoneNumber: normPhone,
-    code,
-    expiresAt,
-    used: false,
-    createdAt: now,
-  });
+  // Fallback for local unit tests without env
+  memoryFallbackStore.otps.set(id, { id, phoneNumber: normPhone, code, expiresAt, used: false, createdAt: now });
   return { code, expiresAt };
 }
 
@@ -332,47 +194,31 @@ export async function verifyOtpCode(phoneNumber: string, code: string): Promise<
   const cleanCode = code.trim();
   const now = Date.now();
 
-  if (isSupabaseConfigured && supabase) {
-    try {
-      const { data, error } = await supabase
-        .from("otps")
-        .select("id")
-        .eq("phone_number", normPhone)
-        .eq("code", cleanCode)
-        .eq("used", false)
-        .gt("expires_at", now)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+  if (supabase) {
+    const { data, error } = await supabase
+      .from("otps")
+      .select("id")
+      .eq("phone_number", normPhone)
+      .eq("code", cleanCode)
+      .eq("used", false)
+      .gt("expires_at", now)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-      if (error || !data) return false;
-
-      await supabase.from("otps").update({ used: true }).eq("id", data.id);
-      return true;
-    } catch (e) {
-      console.warn("Supabase verifyOtpCode fallback to sqlite:", e);
+    if (error) {
+      console.error("❌ [SUPABASE ERROR] verifyOtpCode select:", error.message);
+      return false;
     }
-  }
+    if (!data) return false;
 
-  // SQLite fallback
-  const db = getSqliteDb();
-  if (db) {
-    const stmt = db.prepare(`
-      SELECT id FROM otps
-      WHERE phone_number = ? AND code = ? AND used = 0 AND expires_at > ?
-      ORDER BY created_at DESC
-      LIMIT 1
-    `);
-    const record = stmt.get(normPhone, cleanCode, now) as { id: string } | undefined;
-    if (!record) return false;
-
-    const updateStmt = db.prepare(`UPDATE otps SET used = 1 WHERE id = ?`);
-    updateStmt.run(record.id);
+    // Mark as used
+    await supabase.from("otps").update({ used: true }).eq("id", data.id);
     return true;
   }
 
-  // In-Memory Fallback (Vercel / Serverless)
-  const allOtps = Array.from(inMemoryStore.otps.values());
+  // Fallback
+  const allOtps = Array.from(memoryFallbackStore.otps.values());
   for (let i = allOtps.length - 1; i >= 0; i--) {
     const item = allOtps[i];
     if (item.phoneNumber === normPhone && item.code === cleanCode && !item.used && item.expiresAt > now) {
@@ -384,38 +230,51 @@ export async function verifyOtpCode(phoneNumber: string, code: string): Promise<
 }
 
 /**
- * Finds user by phone or creates a new one
+ * Finds user by phone or creates a new one in Supabase
  */
 export async function findOrCreateUser(phoneNumber: string, fullName?: string): Promise<User> {
   const normPhone = normalizePhoneNumber(phoneNumber);
   const now = new Date().toISOString();
 
-  if (isSupabaseConfigured && supabase) {
-    const { data: existing } = await supabase
+  if (supabase) {
+    // 1. Check if user already exists
+    const { data: existing, error: selectError } = await supabase
       .from("users")
       .select("*")
       .eq("phone_number", normPhone)
       .maybeSingle();
 
-    if (existing) {
-      if (fullName && fullName.trim() && existing.full_name !== fullName.trim()) {
-        const { data: updated } = await supabase
-          .from("users")
-          .update({
-            full_name: fullName.trim(),
-            updated_at: now,
-            last_login_at: now,
-          })
-          .eq("id", existing.id)
-          .select()
-          .single();
-        return mapSupabaseUser(updated || existing);
-      }
-      return mapSupabaseUser(existing);
+    if (selectError) {
+      console.error("❌ [SUPABASE ERROR] findOrCreateUser select:", selectError.message);
+      throw new Error(`خطای ارتباط با دیتابیس کاربران: ${selectError.message}`);
     }
 
+    if (existing) {
+      const updatePayload: any = {
+        last_login_at: now,
+        updated_at: now,
+      };
+      if (fullName && fullName.trim() && existing.full_name !== fullName.trim()) {
+        updatePayload.full_name = fullName.trim();
+      }
+
+      const { data: updated, error: updateError } = await supabase
+        .from("users")
+        .update(updatePayload)
+        .eq("id", existing.id)
+        .select()
+        .single();
+
+      if (updateError) {
+        console.warn("Update login timestamp error:", updateError.message);
+        return mapSupabaseUser(existing);
+      }
+      return mapSupabaseUser(updated);
+    }
+
+    // 2. Create new user
     const newId = "usr_" + crypto.randomUUID().replace(/-/g, "").substring(0, 16);
-    const { data: created, error } = await supabase
+    const { data: created, error: insertError } = await supabase
       .from("users")
       .insert({
         id: newId,
@@ -430,57 +289,22 @@ export async function findOrCreateUser(phoneNumber: string, fullName?: string): 
       .select()
       .single();
 
-    if (error) {
-      console.error("Supabase insert user error:", error);
-      // Fallback check if concurrent insert happened
+    if (insertError) {
+      console.error("❌ [SUPABASE ERROR] findOrCreateUser insert:", insertError.message);
+      // Concurrency check: in case of duplicate insert, fetch existing
       const { data: retry } = await supabase.from("users").select("*").eq("phone_number", normPhone).single();
-      return mapSupabaseUser(retry);
+      if (retry) return mapSupabaseUser(retry);
+      throw new Error(`خطا در ایجاد کاربر در دیتابیس: ${insertError.message}`);
     }
 
     return mapSupabaseUser(created);
   }
 
-  // SQLite fallback
-  const db = getSqliteDb();
-  if (db) {
-    const selectStmt = db.prepare(`SELECT * FROM users WHERE phone_number = ?`);
-    const existing = selectStmt.get(normPhone);
-
-    if (existing) {
-      if (fullName && fullName.trim()) {
-        const updateStmt = db.prepare(`
-          UPDATE users 
-          SET full_name = ?, updated_at = ?, last_login_at = ?
-          WHERE phone_number = ?
-        `);
-        updateStmt.run(fullName.trim(), now, now, normPhone);
-      } else {
-        const updateLoginStmt = db.prepare(`
-          UPDATE users SET last_login_at = ? WHERE phone_number = ?
-        `);
-        updateLoginStmt.run(now, normPhone);
-      }
-      const refreshed = selectStmt.get(normPhone);
-      return mapSqliteUser(refreshed);
-    }
-
-    const newId = "usr_" + crypto.randomUUID().replace(/-/g, "").substring(0, 16);
-    const insertStmt = db.prepare(`
-      INSERT INTO users (id, phone_number, full_name, created_at, updated_at, last_login_at, is_paid, payment_status)
-      VALUES (?, ?, ?, ?, ?, ?, 0, 'none')
-    `);
-    insertStmt.run(newId, normPhone, fullName?.trim() || "", now, now, now);
-    const created = selectStmt.get(normPhone);
-    return mapSqliteUser(created);
-  }
-
-  // In-Memory Fallback (Vercel / Serverless)
-  const existingUserId = inMemoryStore.usersByPhone.get(normPhone);
-  if (existingUserId && inMemoryStore.users.has(existingUserId)) {
-    const user = inMemoryStore.users.get(existingUserId)!;
-    if (fullName && fullName.trim()) {
-      user.fullName = fullName.trim();
-    }
+  // Fallback
+  const existingUserId = memoryFallbackStore.usersByPhone.get(normPhone);
+  if (existingUserId && memoryFallbackStore.users.has(existingUserId)) {
+    const user = memoryFallbackStore.users.get(existingUserId)!;
+    if (fullName && fullName.trim()) user.fullName = fullName.trim();
     user.updatedAt = now;
     user.lastLoginAt = now;
     return user;
@@ -500,8 +324,8 @@ export async function findOrCreateUser(phoneNumber: string, fullName?: string): 
     cardLastDigits: null,
     paidAt: null,
   };
-  inMemoryStore.users.set(newId, newUser);
-  inMemoryStore.usersByPhone.set(normPhone, newId);
+  memoryFallbackStore.users.set(newId, newUser);
+  memoryFallbackStore.usersByPhone.set(normPhone, newId);
   return newUser;
 }
 
@@ -509,19 +333,15 @@ export async function findOrCreateUser(phoneNumber: string, fullName?: string): 
  * Finds user by ID
  */
 export async function findUserById(userId: string): Promise<User | null> {
-  if (isSupabaseConfigured && supabase) {
-    const { data } = await supabase.from("users").select("*").eq("id", userId).maybeSingle();
+  if (supabase) {
+    const { data, error } = await supabase.from("users").select("*").eq("id", userId).maybeSingle();
+    if (error) {
+      console.error("❌ [SUPABASE ERROR] findUserById:", error.message);
+      return null;
+    }
     return data ? mapSupabaseUser(data) : null;
   }
-
-  const db = getSqliteDb();
-  if (db) {
-    const stmt = db.prepare(`SELECT * FROM users WHERE id = ?`);
-    const row = stmt.get(userId);
-    return row ? mapSqliteUser(row) : null;
-  }
-
-  return inMemoryStore.users.get(userId) || null;
+  return memoryFallbackStore.users.get(userId) || null;
 }
 
 /**
@@ -530,26 +350,22 @@ export async function findUserById(userId: string): Promise<User | null> {
 export async function updateUserProfile(userId: string, fullName: string): Promise<User | null> {
   const now = new Date().toISOString();
 
-  if (isSupabaseConfigured && supabase) {
-    const { data } = await supabase
+  if (supabase) {
+    const { data, error } = await supabase
       .from("users")
       .update({ full_name: fullName.trim(), updated_at: now })
       .eq("id", userId)
       .select()
       .maybeSingle();
+
+    if (error) {
+      console.error("❌ [SUPABASE ERROR] updateUserProfile:", error.message);
+      throw new Error(`خطا در ویرایش اطلاعات کاربر: ${error.message}`);
+    }
     return data ? mapSupabaseUser(data) : null;
   }
 
-  const db = getSqliteDb();
-  if (db) {
-    const stmt = db.prepare(`
-      UPDATE users SET full_name = ?, updated_at = ? WHERE id = ?
-    `);
-    stmt.run(fullName.trim(), now, userId);
-    return findUserById(userId);
-  }
-
-  const user = inMemoryStore.users.get(userId);
+  const user = memoryFallbackStore.users.get(userId);
   if (user) {
     user.fullName = fullName.trim();
     user.updatedAt = now;
@@ -570,7 +386,7 @@ export async function updateUserPayment(
 ): Promise<User | null> {
   const now = new Date().toISOString();
 
-  if (isSupabaseConfigured && supabase) {
+  if (supabase) {
     const payload: any = {
       is_paid: isPaid,
       payment_status: paymentStatus,
@@ -587,42 +403,14 @@ export async function updateUserPayment(
       .select()
       .maybeSingle();
 
-    if (error) console.error("Supabase updateUserPayment error:", error);
+    if (error) {
+      console.error("❌ [SUPABASE ERROR] updateUserPayment:", error.message);
+      throw new Error(`خطا در ثبت وضعیت پرداخت: ${error.message}`);
+    }
     return data ? mapSupabaseUser(data) : null;
   }
 
-  const db = getSqliteDb();
-  if (db) {
-    let query = `
-      UPDATE users 
-      SET is_paid = ?, payment_status = ?, updated_at = ?
-    `;
-    const params: any[] = [isPaid ? 1 : 0, paymentStatus, now];
-
-    if (paymentRef !== undefined) {
-      query += `, payment_ref = ?`;
-      params.push(paymentRef);
-    }
-    if (cardLastDigits !== undefined) {
-      query += `, card_last_digits = ?`;
-      params.push(cardLastDigits);
-    }
-    if (isPaid) {
-      query += `, paid_at = ?`;
-      params.push(now);
-    }
-
-    query += ` WHERE id = ?`;
-    params.push(userId);
-
-    const stmt = db.prepare(query);
-    stmt.run(...params);
-
-    return findUserById(userId);
-  }
-
-  // In-Memory Fallback
-  const user = inMemoryStore.users.get(userId);
+  const user = memoryFallbackStore.users.get(userId);
   if (user) {
     user.isPaid = isPaid;
     user.paymentStatus = paymentStatus;
@@ -640,38 +428,26 @@ export async function updateUserPayment(
  */
 export async function createSession(userId: string): Promise<{ token: string; expiresAt: number }> {
   const token = crypto.randomBytes(32).toString("hex");
-  const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000;
+  const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000; // 30 days
   const now = new Date().toISOString();
   const id = "sess_" + crypto.randomUUID().replace(/-/g, "");
 
-  if (isSupabaseConfigured && supabase) {
-    await supabase.from("sessions").insert({
+  if (supabase) {
+    const { error } = await supabase.from("sessions").insert({
       id,
       user_id: userId,
       token,
       expires_at: expiresAt,
       created_at: now,
     });
+    if (error) {
+      console.error("❌ [SUPABASE ERROR] createSession:", error.message);
+      throw new Error(`خطا در ایجاد نشست کاربری: ${error.message}`);
+    }
     return { token, expiresAt };
   }
 
-  const db = getSqliteDb();
-  if (db) {
-    const stmt = db.prepare(`
-      INSERT INTO sessions (id, user_id, token, expires_at, created_at)
-      VALUES (?, ?, ?, ?, ?)
-    `);
-    stmt.run(id, userId, token, expiresAt, now);
-    return { token, expiresAt };
-  }
-
-  inMemoryStore.sessions.set(token, {
-    id,
-    userId,
-    token,
-    expiresAt,
-    createdAt: now,
-  });
+  memoryFallbackStore.sessions.set(token, { id, userId, token, expiresAt, createdAt: now });
   return { token, expiresAt };
 }
 
@@ -682,59 +458,37 @@ export async function getUserByToken(token: string): Promise<User | null> {
   if (!token) return null;
   const now = Date.now();
 
-  if (isSupabaseConfigured && supabase) {
-    const { data: session } = await supabase
+  if (supabase) {
+    const { data: session, error } = await supabase
       .from("sessions")
       .select("user_id")
       .eq("token", token)
       .gt("expires_at", now)
       .maybeSingle();
 
-    if (!session) return null;
+    if (error || !session) return null;
     return await findUserById(session.user_id);
   }
 
-  const db = getSqliteDb();
-  if (db) {
-    const stmt = db.prepare(`
-      SELECT u.* FROM users u
-      JOIN sessions s ON u.id = s.user_id
-      WHERE s.token = ? AND s.expires_at > ?
-      LIMIT 1
-    `);
-    const row = stmt.get(token, now);
-    return row ? mapSqliteUser(row) : null;
-  }
-
-  const session = inMemoryStore.sessions.get(token);
-  if (!session || session.expiresAt <= now) {
-    return null;
-  }
-  return inMemoryStore.users.get(session.userId) || null;
+  const session = memoryFallbackStore.sessions.get(token);
+  if (!session || session.expiresAt <= now) return null;
+  return memoryFallbackStore.users.get(session.userId) || null;
 }
 
 /**
  * Deletes a session on logout
  */
 export async function deleteSession(token: string): Promise<boolean> {
-  if (isSupabaseConfigured && supabase) {
-    await supabase.from("sessions").delete().eq("token", token);
-    return true;
+  if (supabase) {
+    const { error } = await supabase.from("sessions").delete().eq("token", token);
+    return !error;
   }
-
-  const db = getSqliteDb();
-  if (db) {
-    const stmt = db.prepare(`DELETE FROM sessions WHERE token = ?`);
-    stmt.run(token);
-    return true;
-  }
-
-  inMemoryStore.sessions.delete(token);
+  memoryFallbackStore.sessions.delete(token);
   return true;
 }
 
 /**
- * Saves an assessment dossier
+ * Saves an assessment dossier in Supabase
  */
 export async function saveAssessment(
   userId: string,
@@ -746,7 +500,7 @@ export async function saveAssessment(
   const now = new Date().toISOString();
   const finalTitle = title || `ارزیابی مهاجرت - ${new Date().toLocaleDateString("fa-IR")}`;
 
-  if (isSupabaseConfigured && supabase) {
+  if (supabase) {
     const { data, error } = await supabase
       .from("user_assessments")
       .insert({
@@ -761,33 +515,10 @@ export async function saveAssessment(
       .select()
       .single();
 
-    if (error) console.error("Supabase saveAssessment error:", error);
-    return {
-      id: newId,
-      userId,
-      title: finalTitle,
-      profileData,
-      resultsData,
-      createdAt: now,
-      updatedAt: now,
-    };
-  }
-
-  const db = getSqliteDb();
-  if (db) {
-    const stmt = db.prepare(`
-      INSERT INTO user_assessments (id, user_id, title, profile_data, results_data, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
-    stmt.run(
-      newId,
-      userId,
-      finalTitle,
-      JSON.stringify(profileData),
-      JSON.stringify(resultsData),
-      now,
-      now
-    );
+    if (error) {
+      console.error("❌ [SUPABASE ERROR] saveAssessment:", error.message, error.details);
+      throw new Error(`خطا در ذخیره پرونده در دیتابیس: ${error.message}`);
+    }
 
     return {
       id: newId,
@@ -809,20 +540,25 @@ export async function saveAssessment(
     createdAt: now,
     updatedAt: now,
   };
-  inMemoryStore.assessments.set(newId, record);
+  memoryFallbackStore.assessments.set(newId, record);
   return record;
 }
 
 /**
- * Lists user assessments
+ * Lists user assessments from Supabase
  */
 export async function getUserAssessments(userId: string): Promise<any[]> {
-  if (isSupabaseConfigured && supabase) {
-    const { data } = await supabase
+  if (supabase) {
+    const { data, error } = await supabase
       .from("user_assessments")
       .select("id, title, created_at, updated_at, results_data, profile_data")
       .eq("user_id", userId)
       .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("❌ [SUPABASE ERROR] getUserAssessments:", error.message);
+      return [];
+    }
 
     return (data || []).map((row) => ({
       id: row.id,
@@ -834,34 +570,7 @@ export async function getUserAssessments(userId: string): Promise<any[]> {
     }));
   }
 
-  const db = getSqliteDb();
-  if (db) {
-    const stmt = db.prepare(`
-      SELECT id, title, created_at, updated_at, results_data, profile_data 
-      FROM user_assessments 
-      WHERE user_id = ? 
-      ORDER BY created_at DESC
-    `);
-    const rows = stmt.all(userId) as any[];
-
-    return rows.map((r) => {
-      let parsedResults: any = {};
-      let parsedProfile: any = {};
-      try { parsedResults = JSON.parse(r.results_data); } catch { }
-      try { parsedProfile = JSON.parse(r.profile_data); } catch { }
-
-      return {
-        id: r.id,
-        title: r.title,
-        createdAt: r.created_at,
-        updatedAt: r.updated_at,
-        primaryDestinations: parsedResults.primaryDestinations || [],
-        migrationGoal: parsedProfile.migrationGoal || "both",
-      };
-    });
-  }
-
-  return Array.from(inMemoryStore.assessments.values())
+  return Array.from(memoryFallbackStore.assessments.values())
     .filter((a) => a.userId === userId)
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .map((r) => ({
@@ -878,15 +587,15 @@ export async function getUserAssessments(userId: string): Promise<any[]> {
  * Gets a single assessment by ID for authorized user
  */
 export async function getUserAssessmentById(id: string, userId: string): Promise<UserAssessmentRecord | null> {
-  if (isSupabaseConfigured && supabase) {
-    const { data } = await supabase
+  if (supabase) {
+    const { data, error } = await supabase
       .from("user_assessments")
       .select("*")
       .eq("id", id)
       .eq("user_id", userId)
       .maybeSingle();
 
-    if (!data) return null;
+    if (error || !data) return null;
     return {
       id: data.id,
       userId: data.user_id,
@@ -898,29 +607,8 @@ export async function getUserAssessmentById(id: string, userId: string): Promise
     };
   }
 
-  const db = getSqliteDb();
-  if (db) {
-    const stmt = db.prepare(`
-      SELECT * FROM user_assessments WHERE id = ? AND user_id = ?
-    `);
-    const row = stmt.get(id, userId) as any;
-    if (!row) return null;
-
-    return {
-      id: row.id,
-      userId: row.user_id,
-      title: row.title,
-      profileData: JSON.parse(row.profile_data),
-      resultsData: JSON.parse(row.results_data),
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    };
-  }
-
-  const record = inMemoryStore.assessments.get(id);
-  if (record && record.userId === userId) {
-    return record;
-  }
+  const record = memoryFallbackStore.assessments.get(id);
+  if (record && record.userId === userId) return record;
   return null;
 }
 
@@ -928,7 +616,7 @@ export async function getUserAssessmentById(id: string, userId: string): Promise
  * Deletes an assessment
  */
 export async function deleteUserAssessment(id: string, userId: string): Promise<boolean> {
-  if (isSupabaseConfigured && supabase) {
+  if (supabase) {
     const { error } = await supabase
       .from("user_assessments")
       .delete()
@@ -937,28 +625,103 @@ export async function deleteUserAssessment(id: string, userId: string): Promise<
     return !error;
   }
 
-  const db = getSqliteDb();
-  if (db) {
-    const stmt = db.prepare(`
-      DELETE FROM user_assessments WHERE id = ? AND user_id = ?
-    `);
-    stmt.run(id, userId);
-    return true;
-  }
-
-  const record = inMemoryStore.assessments.get(id);
+  const record = memoryFallbackStore.assessments.get(id);
   if (record && record.userId === userId) {
-    inMemoryStore.assessments.delete(id);
+    memoryFallbackStore.assessments.delete(id);
     return true;
   }
   return false;
 }
 
 /**
- * Extracts leads for Admin panel
+ * Records an online payment transaction (Zibal)
+ */
+export async function recordPaymentTransaction(
+  userId: string | null,
+  amountTomans: number = 499000,
+  amountRials: number = 4990000,
+  trackId?: string,
+  status: "pending" | "verified" | "failed" | "cancelled" = "pending"
+): Promise<string> {
+  const id = "tx_" + crypto.randomUUID().replace(/-/g, "");
+  const now = new Date().toISOString();
+
+  if (supabase) {
+    const { error } = await supabase.from("payment_transactions").insert({
+      id,
+      user_id: userId,
+      amount_tomans: amountTomans,
+      amount_rials: amountRials,
+      gateway: "zibal",
+      track_id: trackId || null,
+      status,
+      created_at: now,
+    });
+    if (error) console.error("❌ [SUPABASE ERROR] recordPaymentTransaction:", error.message);
+    return id;
+  }
+
+  memoryFallbackStore.transactions.set(id, {
+    id,
+    userId,
+    amountTomans,
+    amountRials,
+    gateway: "zibal",
+    trackId: trackId || null,
+    refNumber: null,
+    cardPan: null,
+    status,
+    createdAt: now,
+    verifiedAt: null,
+  });
+  return id;
+}
+
+/**
+ * Completes and marks payment transaction as verified
+ */
+export async function completePaymentTransaction(
+  trackId: string,
+  refNumber: string,
+  cardPan?: string,
+  rawResponse?: any
+): Promise<boolean> {
+  const now = new Date().toISOString();
+
+  if (supabase) {
+    const { error } = await supabase
+      .from("payment_transactions")
+      .update({
+        status: "verified",
+        ref_number: refNumber,
+        card_pan: cardPan || null,
+        raw_response: rawResponse || null,
+        verified_at: now,
+      })
+      .eq("track_id", trackId);
+
+    if (error) console.error("❌ [SUPABASE ERROR] completePaymentTransaction:", error.message);
+    return !error;
+  }
+
+  for (const tx of memoryFallbackStore.transactions.values()) {
+    if (tx.trackId === trackId) {
+      tx.status = "verified";
+      tx.refNumber = refNumber;
+      tx.cardPan = cardPan || null;
+      tx.rawResponse = rawResponse;
+      tx.verifiedAt = now;
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Extracts leads and big data for Admin panel from Supabase
  */
 export async function getAllLeadsForAdmin(): Promise<AdminLeadItem[]> {
-  if (isSupabaseConfigured && supabase) {
+  if (supabase) {
     const { data: users, error } = await supabase
       .from("users")
       .select(`
@@ -980,9 +743,12 @@ export async function getAllLeadsForAdmin(): Promise<AdminLeadItem[]> {
       `)
       .order("created_at", { ascending: false });
 
-    if (error || !users) return [];
+    if (error) {
+      console.error("❌ [SUPABASE ERROR] getAllLeadsForAdmin:", error.message);
+      return [];
+    }
 
-    return users.map((u: any) => {
+    return (users || []).map((u: any) => {
       const assessments = u.user_assessments || [];
       const assessmentsCount = assessments.length;
       let latestDestination: string | null = null;
@@ -1023,69 +789,9 @@ export async function getAllLeadsForAdmin(): Promise<AdminLeadItem[]> {
     });
   }
 
-  // SQLite fallback
-  const db = getSqliteDb();
-  if (db) {
-    const usersStmt = db.prepare(`
-      SELECT * FROM users ORDER BY created_at DESC
-    `);
-    const users = usersStmt.all() as any[];
-
-    return users.map((u) => {
-      const asmtStmt = db.prepare(`
-        SELECT profile_data, results_data FROM user_assessments 
-        WHERE user_id = ? 
-        ORDER BY created_at DESC
-      `);
-      const asmts = asmtStmt.all(u.id) as any[];
-      const assessmentsCount = asmts.length;
-
-      let latestDestination: string | null = null;
-      let latestRoute: string | null = null;
-      let latestScore: number | null = null;
-      let latestGoal: string | null = null;
-
-      if (assessmentsCount > 0) {
-        try {
-          const parsed = JSON.parse(asmts[0].results_data);
-          const topDest = parsed.primaryDestinations?.[0];
-          if (topDest) {
-            latestDestination = topDest.countryNameFa || topDest.countryCode || null;
-            latestRoute = topDest.routeNameFa || null;
-            latestScore = topDest.fitScore ?? null;
-          }
-          if (asmts[0].profile_data) {
-            const parsedProf = JSON.parse(asmts[0].profile_data);
-            latestGoal = parsedProf.migrationGoal || parsed.migrationGoal || null;
-          } else {
-            latestGoal = parsed.migrationGoal || null;
-          }
-        } catch { }
-      }
-
-      return {
-        id: u.id,
-        phoneNumber: u.phone_number,
-        fullName: u.full_name || "",
-        createdAt: u.created_at,
-        lastLoginAt: u.last_login_at || null,
-        isPaid: Boolean(u.is_paid),
-        paymentStatus: (u.payment_status || "none") as any,
-        paymentRef: u.payment_ref || null,
-        cardLastDigits: u.card_last_digits || null,
-        paidAt: u.paid_at || null,
-        assessmentsCount,
-        latestDestination,
-        latestRoute,
-        latestScore,
-        latestGoal,
-      };
-    });
-  }
-
-  // In-Memory Fallback
-  return Array.from(inMemoryStore.users.values()).map((u) => {
-    const userAssessments = Array.from(inMemoryStore.assessments.values())
+  // Fallback for offline dev
+  return Array.from(memoryFallbackStore.users.values()).map((u) => {
+    const userAssessments = Array.from(memoryFallbackStore.assessments.values())
       .filter((a) => a.userId === u.id)
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 

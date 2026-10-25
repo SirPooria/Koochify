@@ -18,6 +18,8 @@ import {
   updateUserPayment,
   getAllLeadsForAdmin,
   findUserById,
+  recordPaymentTransaction,
+  completePaymentTransaction,
 } from "./server/db.ts";
 import { sendOtpSms } from "./server/smsService.ts";
 import crypto from "node:crypto";
@@ -370,6 +372,14 @@ const handleOnlinePaymentRequest = async (req: any, res: any) => {
     console.log("[ZIBAL RESPONSE]", zibalData);
 
     if (zibalData?.result === 100 && zibalData?.trackId) {
+      await recordPaymentTransaction({
+        userId: req.user.id,
+        amountTomans: 499000,
+        amountRials: amountRials,
+        trackId: String(zibalData.trackId),
+        rawResponse: zibalData,
+      }).catch((e) => console.error("Could not record payment tx in DB:", e));
+
       return res.json({
         success: true,
         paymentUrl: `https://gateway.zibal.ir/start/${zibalData.trackId}`,
@@ -436,9 +446,11 @@ const handleZibalCallback = async (req: any, res: any) => {
         const refNumber = verifyData.refNumber || trackId;
         const cardNumber = verifyData.cardNumber || "";
         await updateUserPayment(String(userId), true, "paid", String(refNumber), cardNumber);
+        await completePaymentTransaction(String(trackId), String(refNumber), cardNumber, "verified", verifyData).catch((e) => console.error("Could not complete payment tx:", e));
         console.log(`[PAYMENT SUCCESS] پرداخت کاربر ${userId} با موفقیت تایید شد. شماره تراکنش: ${refNumber}`);
         return res.redirect(`https://koochify.ir/?payment=success&ref=${refNumber}`);
       } else {
+        await completePaymentTransaction(String(trackId), "", "", "failed", verifyData).catch((e) => console.error("Could not update failed tx:", e));
         console.warn(`[ZIBAL VERIFY FAILED] تراکنش تایید نشد: ${verifyData?.result} - ${verifyData?.message}`);
         return res.redirect(`https://koochify.ir/?payment=failed&status=${verifyData?.result || status}`);
       }
