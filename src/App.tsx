@@ -223,6 +223,10 @@ export default function App() {
     setUserProfile(DEFAULT_PROFILE);
     setResults(null);
     setIsSavedToCloud(false);
+    try {
+      localStorage.removeItem("kochify_profile_draft");
+      localStorage.removeItem("kochify_wizard_introduced");
+    } catch {}
     setActiveTab("home");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };

@@ -148,14 +148,8 @@ export default function AssessmentWizard({
     };
   });
 
-  // Assistant introduction state
-  const [isIntroduced, setIsIntroduced] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem("kochify_wizard_introduced") === "true";
-    } catch {
-      return false;
-    }
-  });
+  // Assistant introduction state (always greets the user first)
+  const [isIntroduced, setIsIntroduced] = useState<boolean>(false);
 
   const [inputFirstName, setInputFirstName] = useState("");
   const [inputLastName, setInputLastName] = useState("");
