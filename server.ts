@@ -18,8 +18,8 @@ import {
   updateUserPayment,
   getAllLeadsForAdmin,
   findUserById,
-} from "./server/db";
-import { sendOtpSms } from "./server/smsService";
+} from "./server/db.ts";
+import { sendOtpSms } from "./server/smsService.ts";
 import crypto from "node:crypto";
 
 dotenv.config();
