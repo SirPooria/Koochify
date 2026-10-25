@@ -10,7 +10,7 @@
       "destination": "/api/index.ts"
     },
     {
-      "source": "/((?!api).*)",
+      "source": "/((?!api|37583893\\.txt).*)",
       "destination": "/index.html"
     }
   ]

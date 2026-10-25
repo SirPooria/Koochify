@@ -37,6 +37,11 @@ app.get(["/api", "/api/health"], (req, res) => {
   });
 });
 
+// Enamad Verification Endpoint
+app.get("/37583893.txt", (req, res) => {
+  return res.type("text/plain").status(200).send("");
+});
+
 // SMS Provider Status Ping
 app.get("/api/sms/status", (req, res) => {
   const username =
