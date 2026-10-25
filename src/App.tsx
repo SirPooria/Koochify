@@ -521,19 +521,19 @@ export default function App() {
       )}
 
       {/* Footer */}
-      <footer className="border-t border-slate-200 bg-white py-10 px-4 sm:px-6 text-xs text-slate-600">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
+      <footer className="border-t border-slate-200 bg-white py-12 px-4 sm:px-6 text-xs text-slate-600">
+        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-8">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center text-white">
+            <div className="w-9 h-9 rounded-xl bg-emerald-600 flex items-center justify-center text-white shadow-xs">
               <Compass className="w-5 h-5" />
             </div>
             <div>
-              <div className="font-bold text-slate-900">کوچیفای (Kochify)</div>
+              <div className="font-bold text-slate-900 text-sm">کوچیفای (Kochify)</div>
               <div className="text-[11px] text-slate-500">سامانه هوشمند تصمیم‌یار مهاجرت ویژه ایرانیان</div>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-center gap-6 text-[11px] font-semibold text-slate-600">
+          <div className="flex flex-wrap items-center justify-center gap-5 text-[11px] font-semibold text-slate-600">
             <button 
               onClick={() => {
                 setActiveTab(results ? "results" : "assessment");
@@ -597,9 +597,21 @@ export default function App() {
             </button>
           </div>
 
-          <div className="text-[11px] text-slate-500 text-center md:text-left font-mono">
-            داده‌ها به‌روزرسانی‌شده بر مبنای بخشنامه‌های مصوب ۲۰۲۶
+          {/* Enamad Trust Seal */}
+          <div className="flex flex-col items-center sm:items-end gap-1.5 shrink-0">
+            <div 
+              className="bg-white p-1.5 rounded-2xl border border-slate-200/90 shadow-xs hover:shadow-md hover:border-emerald-500/50 transition-all flex items-center justify-center cursor-pointer"
+              dangerouslySetInnerHTML={{
+                __html: `<a referrerpolicy='origin' target='_blank' href='https://trustseal.enamad.ir/?id=8347151&Code=cPtmp5o0en9YwezxN1LS9nOBqUpVAXl8'><img referrerpolicy='origin' src='https://trustseal.enamad.ir/logo.aspx?id=8347151&Code=cPtmp5o0en9YwezxN1LS9nOBqUpVAXl8' alt='' style='cursor:pointer' code='cPtmp5o0en9YwezxN1LS9nOBqUpVAXl8'></a>`
+              }}
+            />
+            <span className="text-[10px] text-slate-400 font-medium">نماد اعتماد الکترونیکی</span>
           </div>
+        </div>
+
+        <div className="max-w-6xl mx-auto mt-8 pt-6 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-slate-400">
+          <div>کلیه حقوق برای سامانه کوچیفای محفوظ است © ۲۰۲۶</div>
+          <div className="font-mono">داده‌ها به‌روزرسانی‌شده بر مبنای بخشنامه‌های مصوب ۲۰۲۶</div>
         </div>
       </footer>
     </div>
