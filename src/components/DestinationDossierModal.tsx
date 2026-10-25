@@ -175,7 +175,7 @@ export default function DestinationDossierModal({
                   {route.financialBreakdown.estimatedFirstYearTotalFa}
                 </span>
                 <span className="text-[9px] text-emerald-200 block mt-0.5">
-                  ({route.financialBreakdown.approximateTotalTomanBillionFa})
+                  ({route.financialBreakdown.approximateTotalFa || `~${route.financialBreakdown.approximateTotalUsd.toLocaleString()} $`})
                 </span>
               </div>
             </div>

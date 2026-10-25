@@ -20,11 +20,14 @@ import {
 import { UserAssessmentProfile, MigrationGoal, DegreeLevel, EnglishExamType, CEFRLevel, MilitaryStatus } from "../types";
 import { STUDY_FIELDS } from "../data/studyFieldsData";
 import { OCCUPATIONS_CATALOG } from "../data/occupationsData";
+import { AuthUser, updateProfile } from "../services/authService";
 
 interface AssessmentWizardProps {
   initialGoal?: MigrationGoal;
   onSubmit: (profile: UserAssessmentProfile) => void;
   isLoading: boolean;
+  user?: AuthUser | null;
+  onUpdateUser?: (updated: AuthUser) => void;
 }
 
 export const DEFAULT_PROFILE: UserAssessmentProfile = {
@@ -33,6 +36,8 @@ export const DEFAULT_PROFILE: UserAssessmentProfile = {
   acceptedCountries: [],
   excludedCountries: [],
   relocationFlexibility: "high",
+  destinationScope: "any",
+  targetSpecificCountry: "",
 
   fullName: "",
   age: 28,
@@ -119,7 +124,9 @@ const STEPS = [
 export default function AssessmentWizard({
   initialGoal,
   onSubmit,
-  isLoading
+  isLoading,
+  user,
+  onUpdateUser
 }: AssessmentWizardProps) {
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [profile, setProfile] = useState<UserAssessmentProfile>(() => {
@@ -128,6 +135,7 @@ export default function AssessmentWizard({
       if (saved) {
         const parsed = JSON.parse(saved);
         if (initialGoal) parsed.migrationGoal = initialGoal;
+        if (user?.fullName && !parsed.fullName) parsed.fullName = user.fullName;
         return { ...DEFAULT_PROFILE, ...parsed };
       }
     } catch (e) {
@@ -135,9 +143,30 @@ export default function AssessmentWizard({
     }
     return {
       ...DEFAULT_PROFILE,
+      fullName: user?.fullName || DEFAULT_PROFILE.fullName,
       migrationGoal: initialGoal || DEFAULT_PROFILE.migrationGoal
     };
   });
+
+  // Assistant introduction state
+  const [isIntroduced, setIsIntroduced] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("kochify_wizard_introduced") === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  const [inputFirstName, setInputFirstName] = useState("");
+  const [inputLastName, setInputLastName] = useState("");
+  const [isSavingName, setIsSavingName] = useState(false);
+
+  // Sync user fullName if it becomes available
+  useEffect(() => {
+    if (user?.fullName && !profile.fullName) {
+      setProfile(prev => ({ ...prev, fullName: user.fullName || "" }));
+    }
+  }, [user?.fullName]);
 
   const [activeHelpMessage, setActiveHelpMessage] = useState<string | null>(null);
 
@@ -175,6 +204,136 @@ export default function AssessmentWizard({
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
   };
+
+  const currentFullName = profile.fullName?.trim() || user?.fullName?.trim() || "";
+  const displayName = currentFullName || "همراه عزیز";
+
+  // If user hasn't passed assistant greeting, show introduction card first
+  if (!isIntroduced) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-12 text-right">
+        <div className="bg-white rounded-3xl border-2 border-slate-200/90 shadow-xl p-6 sm:p-10 relative overflow-hidden">
+          {/* Subtle background glow */}
+          <div className="absolute -top-12 -right-12 w-44 h-44 bg-emerald-100 rounded-full blur-3xl opacity-70 pointer-events-none" />
+          <div className="absolute -bottom-12 -left-12 w-44 h-44 bg-teal-100 rounded-full blur-3xl opacity-70 pointer-events-none" />
+
+          {/* Assistant Avatar Header */}
+          <div className="flex flex-col items-center text-center mb-6 relative z-10">
+            <div className="w-18 h-18 rounded-3xl bg-gradient-to-tr from-emerald-600 to-teal-500 p-1 shadow-lg shadow-emerald-600/25 mb-3 flex items-center justify-center">
+              <div className="w-full h-full bg-slate-900 rounded-[22px] flex items-center justify-center text-emerald-400">
+                <Sparkles className="w-8 h-8 animate-pulse" />
+              </div>
+            </div>
+            <span className="inline-block bg-emerald-100 text-emerald-900 border border-emerald-300 text-xs font-black px-3 py-1 rounded-full">
+              دستیار هوشمند مهاجرتی کوچیفای
+            </span>
+          </div>
+
+          {currentFullName ? (
+            /* User ALREADY has a full name */
+            <div className="space-y-6 text-center relative z-10">
+              <div className="bg-emerald-50/80 border-2 border-emerald-200 rounded-2xl p-6 shadow-2xs">
+                <p className="text-base sm:text-lg font-bold text-slate-800 leading-relaxed">
+                  « سلام <span className="text-emerald-700 font-black">{currentFullName}</span> من دستیار مهاجرتی کوچیفای هستم، سوالاتی که ازت می‌پرسم رو صادقانه و با دقت جواب بده تا منم بهتر بتونم کمکت کنم، آماده‌ای ؟ »
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsIntroduced(true);
+                  try {
+                    localStorage.setItem("kochify_wizard_introduced", "true");
+                  } catch {}
+                }}
+                className="w-full sm:w-auto min-w-[200px] py-3.5 px-8 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-2xl font-black text-base shadow-lg shadow-emerald-600/25 transition-all flex items-center justify-center gap-2 mx-auto cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+              >
+                <span>بزن بریم</span>
+                <ArrowLeft className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            /* User does NOT have a full name */
+            <div className="space-y-6 text-center relative z-10">
+              <div className="bg-slate-50 border-2 border-slate-200 rounded-2xl p-6 shadow-2xs">
+                <p className="text-base sm:text-lg font-bold text-slate-800 leading-relaxed">
+                  « سلام رفیق، من دستیار مهاجرتی کوچیفای هستم، قبل از اینکه شروع کنیم، لطفاً نام و نام خانوادگیت رو برام بنویس تا بدونم به چه اسمی باید صدات کنم »
+                </p>
+              </div>
+
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  const combined = `${inputFirstName.trim()} ${inputLastName.trim()}`.trim();
+                  if (!combined) return;
+                  setIsSavingName(true);
+                  updateField("fullName", combined);
+                  if (user) {
+                    try {
+                      const updated = await updateProfile(combined);
+                      if (onUpdateUser) onUpdateUser(updated);
+                    } catch (err) {
+                      console.warn("Could not save profile name to backend:", err);
+                    }
+                  }
+                  setIsSavingName(false);
+                  setIsIntroduced(true);
+                  try {
+                    localStorage.setItem("kochify_wizard_introduced", "true");
+                  } catch {}
+                }}
+                className="space-y-4 max-w-md mx-auto"
+              >
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-right">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      نام:
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="محمد"
+                      value={inputFirstName}
+                      onChange={(e) => setInputFirstName(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-bold focus:border-emerald-500 focus:bg-white focus:outline-hidden"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      نام خانوادگی:
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="محمدی"
+                      value={inputLastName}
+                      onChange={(e) => setInputLastName(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-bold focus:border-emerald-500 focus:bg-white focus:outline-hidden"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isSavingName || (!inputFirstName.trim() && !inputLastName.trim())}
+                  className="w-full sm:w-auto min-w-[200px] py-3.5 px-8 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-2xl font-black text-sm shadow-lg shadow-emerald-600/25 transition-all flex items-center justify-center gap-2 mx-auto cursor-pointer hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
+                >
+                  {isSavingName ? (
+                    <span>در حال ثبت...</span>
+                  ) : (
+                    <>
+                      <span>بزن بریم</span>
+                      <ArrowLeft className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </form>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
@@ -261,12 +420,18 @@ export default function AssessmentWizard({
       <div className="bg-white rounded-3xl border-2 border-slate-300 shadow-sm p-6 sm:p-8 text-right">
         {/* STEP 1: GOAL & TIMELINE */}
         {currentStep === 1 && (
-          <div className="space-y-6">
+          <div className="space-y-7">
+            {/* Question 1: Goal */}
             <div>
-              <label className="block text-sm font-extrabold text-slate-900 mb-2.5">
-                هدف مهاجرتی مد نظر شما چیست؟
-              </label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="flex items-center gap-2 mb-2.5">
+                <span className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-800 text-xs font-black flex items-center justify-center">
+                  ۱
+                </span>
+                <label className="block text-sm sm:text-base font-black text-slate-900">
+                  {displayName} عزیز، لطفاً بهم بگو ترجیحت اینه که به چه روشی مهاجرت کنی؟
+                </label>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
                 {[
                   { id: "study", label: "مهاجرت تحصیلی" },
                   { id: "work", label: "مهاجرت کاری" },
@@ -277,10 +442,10 @@ export default function AssessmentWizard({
                     key={item.id}
                     type="button"
                     onClick={() => updateField("migrationGoal", item.id as MigrationGoal)}
-                    className={`p-3.5 rounded-2xl border-2 text-sm font-extrabold transition-all text-center ${
+                    className={`p-4 rounded-2xl border-2 text-sm font-black transition-all text-center cursor-pointer ${
                       profile.migrationGoal === item.id
-                        ? "bg-emerald-700 text-white border-emerald-700 shadow-md scale-[1.02]"
-                        : "bg-white text-slate-900 border-slate-300 hover:bg-slate-100 hover:border-slate-400 shadow-xs"
+                        ? "bg-emerald-700 text-white border-emerald-800 shadow-md scale-[1.02]"
+                        : "bg-white text-slate-900 border-slate-300 hover:bg-slate-50 hover:border-slate-400 shadow-xs"
                     }`}
                   >
                     {item.label}
@@ -289,25 +454,31 @@ export default function AssessmentWizard({
               </div>
             </div>
 
+            {/* Question 2: Timeline */}
             <div>
-              <label className="block text-sm font-extrabold text-slate-900 mb-2.5">
-                افق زمانی مد نظر شما برای خروج و آغاز فرآیند:
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+              <div className="flex items-center gap-2 mb-2.5">
+                <span className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-800 text-xs font-black flex items-center justify-center">
+                  ۲
+                </span>
+                <label className="block text-sm sm:text-base font-black text-slate-900">
+                  افق زمانی که برای مهاجرتت مدنظرت هست، چقدره؟
+                </label>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-1">
                 {[
                   { id: "immediate_6m", label: "فوری (زیر ۶ ماه)" },
-                  { id: "6_to_12m", label: "۶ الی ۱۲ ماه آینده" },
-                  { id: "1_to_2y", label: "۱ تا ۲ سال آینده" },
-                  { id: "exploring_unsure", label: "فقط در حال بررسی / نامشخص" }
+                  { id: "6_to_12m", label: "بین ۶ ماه تا ۱ سال" },
+                  { id: "1_to_2y", label: "بین ۱ تا ۲ سال" },
+                  { id: "exploring_unsure", label: "عجله‌ای ندارم / بیش از ۲ سال" }
                 ].map(item => (
                   <button
                     key={item.id}
                     type="button"
                     onClick={() => updateField("targetTimeline", item.id as any)}
-                    className={`p-3.5 rounded-2xl border-2 text-sm font-extrabold transition-all ${
+                    className={`p-4 rounded-2xl border-2 text-sm font-black transition-all cursor-pointer ${
                       profile.targetTimeline === item.id
-                        ? "bg-emerald-700 text-white border-emerald-700 shadow-md scale-[1.02]"
-                        : "bg-white text-slate-900 border-slate-300 hover:bg-slate-100 hover:border-slate-400 shadow-xs"
+                        ? "bg-emerald-700 text-white border-emerald-800 shadow-md scale-[1.02]"
+                        : "bg-white text-slate-900 border-slate-300 hover:bg-slate-50 hover:border-slate-400 shadow-xs"
                     }`}
                   >
                     {item.label}
@@ -316,30 +487,60 @@ export default function AssessmentWizard({
               </div>
             </div>
 
+            {/* Question 3: Destination Scope & Specific Country */}
             <div>
-              <label className="block text-sm font-extrabold text-slate-900 mb-2.5">
-                میزان آمادگی و انعطاف‌پذیری شما برای جابه‌جایی:
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="flex items-center gap-2 mb-2.5">
+                <span className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-800 text-xs font-black flex items-center justify-center">
+                  ۳
+                </span>
+                <label className="block text-sm sm:text-base font-black text-slate-900">
+                  شرایط خاصی برای کشور مقصد مدنظرته؟
+                </label>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
                 {[
-                  { id: "high", label: "بسیار بالا (هر شهر یا کشور مناسب)" },
-                  { id: "medium", label: "متوسط (فقط کشورهای خاص/مطلوب)" },
-                  { id: "low", label: "محدود (فقط یک مقصد از پیش تعیین‌شده)" }
+                  { id: "any", label: "هر شهر یا کشوری اوکی هستم" },
+                  { id: "top_tier", label: "فقط کشورهای سطح بالا" },
+                  { id: "specific", label: "فقط یه کشور خاص مدنظرم هست" }
                 ].map(item => (
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() => updateField("relocationFlexibility", item.id as any)}
-                    className={`p-3.5 rounded-2xl border-2 text-sm font-extrabold transition-all ${
-                      profile.relocationFlexibility === item.id
-                        ? "bg-emerald-700 text-white border-emerald-700 shadow-md scale-[1.02]"
-                        : "bg-white text-slate-900 border-slate-300 hover:bg-slate-100 hover:border-slate-400 shadow-xs"
+                    onClick={() => {
+                      updateField("destinationScope", item.id as any);
+                      if (item.id === "any") updateField("relocationFlexibility", "high");
+                      if (item.id === "top_tier") updateField("relocationFlexibility", "medium");
+                      if (item.id === "specific") updateField("relocationFlexibility", "low");
+                    }}
+                    className={`p-4 rounded-2xl border-2 text-sm font-black transition-all cursor-pointer ${
+                      (profile.destinationScope || "any") === item.id
+                        ? "bg-emerald-700 text-white border-emerald-800 shadow-md scale-[1.02]"
+                        : "bg-white text-slate-900 border-slate-300 hover:bg-slate-50 hover:border-slate-400 shadow-xs"
                     }`}
                   >
                     {item.label}
                   </button>
                 ))}
               </div>
+
+              {/* Dynamic input field when specific country is chosen */}
+              {profile.destinationScope === "specific" && (
+                <div className="mt-4 p-5 rounded-2xl bg-emerald-50/90 border-2 border-emerald-300 animate-fade-in text-right">
+                  <label className="block text-sm font-black text-emerald-950 mb-2">
+                    🎯 اسم کشور مدنظرت رو برام بنویس:
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="مثال: کانادا، آلمان، ایتالیا، هلند، استرالیا، سوئد..."
+                    value={profile.targetSpecificCountry || ""}
+                    onChange={(e) => updateField("targetSpecificCountry", e.target.value)}
+                    className="w-full px-4 py-3 bg-white border-2 border-emerald-400 rounded-xl text-slate-900 font-bold text-sm focus:border-emerald-600 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20"
+                  />
+                  <p className="text-xs text-emerald-800 font-bold mt-2.5 leading-relaxed">
+                    💡 خیالت راحت! پرونده شما رو همزمان برای این کشور اختصاصی شبیه‌سازی می‌کنم. اگه تو نتایج برترت بود تمام شرایطش رو اعلام می‌کنم و اگه نبود، دقیق بهت می‌گم چقدر زبان، چقدر بودجه یا سابقه کار اضافه نیاز داری تا بهش برسی.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -919,25 +1120,25 @@ export default function AssessmentWizard({
                   {
                     id: "under_10k",
                     title: "زیر ۱۰ هزار دلار",
-                    subtitle: "کمتر از ۷۰۰ میلیون تومان",
+                    subtitle: "تا ۹,۰۰۰ یورو (Under $10k)",
                     desc: "مناسب دوره‌های با بورسیه ۱۰۰٪ استانی (مثل ایتالیا) یا مقاصد تحصیلی کم‌هزینه"
                   },
                   {
                     id: "10k_to_25k",
                     title: "۱۰ تا ۲۵ هزار دلار",
-                    subtitle: "۷۰۰ میلیون تا ۱.۸ میلیارد تومان",
+                    subtitle: "۹,۰۰۰ تا ۲۳,۰۰۰ یورو ($10k - $25k)",
                     desc: "پوشش تمکن قانونی حساب مسدود آلمان، کارت فرصت یا پذیرش دانشگاه‌های اروپایی"
                   },
                   {
                     id: "25k_to_50k",
                     title: "۲۵ تا ۵۰ هزار دلار",
-                    subtitle: "۱.۸ تا ۳.۵ میلیارد تومان",
+                    subtitle: "۲۳,۰۰۰ تا ۴۶,۰۰۰ یورو ($25k - $50k)",
                     desc: "مناسب تحصیل در کانادا، بریتانیا، استرالیا و مسیرهای نیازمند شهریه سال اول"
                   },
                   {
                     id: "above_50k",
                     title: "بالای ۵۰ هزار دلار",
-                    subtitle: "بیش از ۳.۵ میلیارد تومان",
+                    subtitle: "بیش از ۴۶,۰۰۰ یورو (+50k $)",
                     desc: "توانایی پوشش خانوادگی کامل، دانشگاه‌های آمریکا یا سرمایه‌گذاری‌های مهارتی"
                   }
                 ].map(b => (

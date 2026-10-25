@@ -241,7 +241,7 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }: AuthModal
                 <div className="relative">
                   <input
                     type="text"
-                    placeholder="مثال: پوریا رافوزه"
+                    placeholder="مثال: محمد محمدی"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     className="w-full px-4 py-2.5 pr-10 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"

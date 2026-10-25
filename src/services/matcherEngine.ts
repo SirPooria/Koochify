@@ -123,6 +123,82 @@ export function evaluateUserMigrationProfile(profile: UserAssessmentProfile): Re
     ? `بر اساس تحلیل شرایط اظهارشده شما، ۳ مقصد برتر شامل ${topCountryNames} به عنوان متمایزترین مسیرهای قانونی شناسایی شدند. برای هر مقصد اقدامات مشخصی جهت تبدیل گزینه‌ها به پذیرش قطعی یا پیشنهاد کاری تدوین شده است.`
     : "با توجه به فیلترها و شرایط سخت‌گیرانه اعلام‌شده، در حال حاضر هیچ مقصدی شرایط احراز قطعی را برآورده نکرد. توصیه می‌شود به بخش رفع شکاف‌ها و جایگزین‌های قانونی مراجعه کنید.";
 
+  // Analysis for specific target country requested by user
+  let specificTargetCountryResult: RecommendationSummary["specificTargetCountryResult"] = null;
+  if (profile.destinationScope === "specific" && profile.targetSpecificCountry?.trim()) {
+    const rawTarget = profile.targetSpecificCountry.trim();
+    const targetQuery = rawTarget.toLowerCase();
+    
+    // Check if target country is already in primary destinations (top 3)
+    const inTopRoute = primaryDestinations.find(d => 
+      d.countryNameFa.toLowerCase().includes(targetQuery) || 
+      targetQuery.includes(d.countryNameFa.toLowerCase()) ||
+      d.countryNameEn.toLowerCase().includes(targetQuery) ||
+      targetQuery.includes(d.countryNameEn.toLowerCase())
+    );
+
+    if (inTopRoute) {
+      specificTargetCountryResult = {
+        countryName: rawTarget,
+        route: inTopRoute,
+        isInTop3: true,
+        qualificationGapsFa: [],
+        requiredActionsFa: inTopRoute.nextActions.slice(0, 3).map(a => a.titleFa),
+        budgetRequirementFa: inTopRoute.financialBreakdown.approximateTotalFa || `${inTopRoute.financialBreakdown.approximateTotalUsd.toLocaleString()} دلار`,
+        languageRequirementFa: inTopRoute.languageRequirement.practicalTargetFa,
+        summaryFa: `کشور انتخابی شما (${rawTarget}) با موفقیت در بین ۳ مقصد برتر و واجد شرایط شما قرار دارد.`
+      };
+    } else {
+      // Find candidate route for this country from all evaluated routes
+      const candidateRoute = evaluatedRoutes.find(r => 
+        r.countryNameFa.toLowerCase().includes(targetQuery) || 
+        targetQuery.includes(r.countryNameFa.toLowerCase()) ||
+        r.countryNameEn.toLowerCase().includes(targetQuery) ||
+        targetQuery.includes(r.countryNameEn.toLowerCase())
+      );
+
+      const gaps: string[] = [];
+      const actions: string[] = [];
+      let budgetReq = "نیاز به بررسی تمکن ارزی بر مبنای آخرین نرخ رسمی سفارت";
+      let langReq = "حداقل مدرک زبان معتبر بین‌المللی B2/C1";
+
+      if (candidateRoute) {
+        budgetReq = candidateRoute.financialBreakdown.approximateTotalFa || `${candidateRoute.financialBreakdown.approximateTotalUsd.toLocaleString()} دلار (~${candidateRoute.financialBreakdown.approximateTotalEur.toLocaleString()} یورو)`;
+        langReq = candidateRoute.languageRequirement.practicalTargetFa;
+
+        if (candidateRoute.hardGateFailed && candidateRoute.hardGateFailureReasons.length > 0) {
+          gaps.push(...candidateRoute.hardGateFailureReasons);
+        }
+        if (candidateRoute.languageRequirement.gapStatus !== "satisfied") {
+          gaps.push(`سطح زبان: ${candidateRoute.languageRequirement.gapExplanationFa}`);
+          actions.push(`ارتقای مدرک زبان به ${candidateRoute.languageRequirement.practicalTargetFa}`);
+        }
+        if (candidateRoute.financialBreakdown.approximateTotalUsd > (profile.liquidBudgetAmount || 20000)) {
+          gaps.push(`بودجه سال اول: این مسیر نیازمند حدود ${budgetReq} است.`);
+          actions.push(`تأمین تمکن مالی ارزی یا دریافت بورسیه/اسپانسرشیپ به میزان ${budgetReq}`);
+        }
+        if (candidateRoute.nextActions && candidateRoute.nextActions.length > 0) {
+          actions.push(...candidateRoute.nextActions.slice(0, 2).map(a => a.titleFa));
+        }
+      } else {
+        gaps.push(`برای کشور «${rawTarget}»، مسیرهای مهاجرت قانونی نیازمند قرارداد کاری معتبر از کارفرمای محلی یا پذیرش تحصیلی رسمی است.`);
+        actions.push("تقویت رزومه تخصصی و اقدام برای دریافت جاب‌آفر یا پذیرش دانشگاهی");
+        actions.push("اخذ مدرک زبان بین‌المللی معتبر (آیلتس/PTE یا زبان محلی مقصد در سطح B2)");
+      }
+
+      specificTargetCountryResult = {
+        countryName: rawTarget,
+        route: candidateRoute,
+        isInTop3: false,
+        qualificationGapsFa: gaps.length > 0 ? gaps : ["برای احراز شرایط این مقصد، نیازمند تکمیل مدارک و ارتقای سوابق تخصصی هستید."],
+        requiredActionsFa: actions.length > 0 ? actions : ["تقویت رزومه کاری و اخذ مدرک زبان رسمی"],
+        budgetRequirementFa: budgetReq,
+        languageRequirementFa: langReq,
+        summaryFa: `کشور مدنظر شما (${rawTarget}) در حال حاضر در جمع ۳ مقصد برتر واجد شرایط شما نیست، اما با رفع شکاف‌های زیر می‌توانید پرونده خود را برای آن آماده کنید:`
+      };
+    }
+  }
+
   return {
     primaryDestinations,
     allEvaluatedRoutes: evaluatedRoutes,
@@ -132,7 +208,8 @@ export function evaluateUserMigrationProfile(profile: UserAssessmentProfile): Re
     profileGaps: profileGaps.slice(0, 4),
     overallRoadmapSummaryFa,
     evaluationTimestamp: new Date().toISOString(),
-    isUnderAge18: profile.age < 18
+    isUnderAge18: profile.age < 18,
+    specificTargetCountryResult
   };
 }
 

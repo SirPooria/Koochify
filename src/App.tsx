@@ -380,6 +380,8 @@ export default function App() {
                   initialGoal={selectedGoal}
                   onSubmit={handleAssessmentComplete}
                   isLoading={isCalculating}
+                  user={user}
+                  onUpdateUser={setUser}
                 />
               </>
             )}

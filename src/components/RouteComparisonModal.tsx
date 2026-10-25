@@ -111,7 +111,7 @@ export default function RouteComparisonModal({
                 {routes.map(r => (
                   <td key={r.routeId} className="p-3 text-center font-black text-emerald-800 bg-emerald-50/40">
                     <div>{r.financialBreakdown.estimatedFirstYearTotalFa}</div>
-                    <div className="text-[10px] text-slate-500 font-normal">{r.financialBreakdown.approximateTotalTomanBillionFa}</div>
+                    <div className="text-[10px] text-slate-500 font-normal">{r.financialBreakdown.approximateTotalFa || `~${r.financialBreakdown.approximateTotalUsd.toLocaleString()} $`}</div>
                   </td>
                 ))}
               </tr>

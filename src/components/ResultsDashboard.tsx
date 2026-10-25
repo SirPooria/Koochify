@@ -296,6 +296,98 @@ export default function ResultsDashboard({
         </div>
       </div>
 
+      {/* SPECIFIC TARGET COUNTRY ANALYSIS CARD (If user chose a specific country) */}
+      {summary.specificTargetCountryResult && (
+        <div className={`rounded-3xl border-2 p-6 sm:p-7 shadow-lg transition-all text-right ${
+          summary.specificTargetCountryResult.isInTop3
+            ? "bg-gradient-to-br from-emerald-500/10 via-white to-teal-500/10 border-emerald-300 shadow-emerald-500/10"
+            : "bg-gradient-to-br from-indigo-500/10 via-white to-cyan-500/10 border-indigo-200 shadow-indigo-500/10"
+        }`}>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4 pb-4 border-b border-slate-200/80">
+            <div className="flex items-center gap-3">
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl shadow-xs ${
+                summary.specificTargetCountryResult.isInTop3
+                  ? "bg-emerald-600 text-white"
+                  : "bg-indigo-600 text-white"
+              }`}>
+                {summary.specificTargetCountryResult.isInTop3 ? "🎯" : "📍"}
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base sm:text-lg font-black text-slate-900">
+                    وضعیت بررسی کشور مدنظر شما: {summary.specificTargetCountryResult.countryName}
+                  </h3>
+                  {summary.specificTargetCountryResult.isInTop3 ? (
+                    <span className="text-[11px] font-black bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full border border-emerald-300">
+                      ✓ در جمع ۳ مقصد برتر
+                    </span>
+                  ) : (
+                    <span className="text-[11px] font-black bg-amber-100 text-amber-900 px-2.5 py-0.5 rounded-full border border-amber-300">
+                      نیازمند تقویت پرونده
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-600 mt-0.5 leading-relaxed font-medium">
+                  {summary.specificTargetCountryResult.summaryFa}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {!summary.specificTargetCountryResult.isInTop3 && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
+                <span className="text-xs font-bold text-slate-500 block mb-1">
+                  شکاف‌ها و شرایط مورد نیاز:
+                </span>
+                <ul className="space-y-1.5 text-xs text-slate-800 font-semibold">
+                  {summary.specificTargetCountryResult.qualificationGapsFa.map((gap, gIdx) => (
+                    <li key={gIdx} className="flex items-start gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5 shrink-0" />
+                      <span>{gap}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
+                <span className="text-xs font-bold text-slate-500 block mb-1">
+                  حداقل تمکن و زبان مورد نیاز:
+                </span>
+                <div className="space-y-2 text-xs">
+                  <div>
+                    <span className="text-slate-600 block">تمکن مالی سال اول (ارزی):</span>
+                    <strong className="text-emerald-800 font-black block mt-0.5">
+                      {summary.specificTargetCountryResult.budgetRequirementFa}
+                    </strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-600 block">حد مورد نیاز زبان:</span>
+                    <strong className="text-slate-900 font-bold block mt-0.5">
+                      {summary.specificTargetCountryResult.languageRequirementFa}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200">
+                <span className="text-xs font-bold text-emerald-900 block mb-1">
+                  اقدامات لازم برای رسیدن به {summary.specificTargetCountryResult.countryName}:
+                </span>
+                <ul className="space-y-1.5 text-xs text-emerald-950 font-bold">
+                  {summary.specificTargetCountryResult.requiredActionsFa.map((action, aIdx) => (
+                    <li key={aIdx} className="flex items-start gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 mt-1.5 shrink-0" />
+                      <span>{action}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* TOP 3 DESTINATION CARDS */}
       <div>
         <div className="flex items-center justify-between mb-4">

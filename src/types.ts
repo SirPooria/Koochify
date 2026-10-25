@@ -25,6 +25,8 @@ export interface UserAssessmentProfile {
   acceptedCountries: string[];
   excludedCountries: string[];
   relocationFlexibility: "high" | "medium" | "low";
+  destinationScope?: "any" | "top_tier" | "specific";
+  targetSpecificCountry?: string;
 
   // Identity & Household
   fullName: string;
@@ -85,8 +87,8 @@ export interface UserAssessmentProfile {
   willingnessToLearnLocalLanguage: "high" | "moderate" | "prefer_english_only";
 
   // Finance & Budget
-  budgetCurrency: "USD" | "EUR" | "TOMAN";
-  liquidBudgetAmount: number; // e.g. in USD or Tomans
+  budgetCurrency: "USD" | "EUR";
+  liquidBudgetAmount: number; // e.g. in USD or EUR
   budgetRangeCategory: "under_10k" | "10k_to_25k" | "25k_to_50k" | "above_50k";
   primaryFundingSource: "personal_savings" | "family_sponsor" | "property_sale" | "loan_or_third_party" | "scholarship_only";
   debtTolerance: "low" | "medium" | "high";
@@ -165,7 +167,9 @@ export interface FinancialBreakdown {
   estimatedFirstYearTotal: number;
   estimatedFirstYearTotalFa: string;
   approximateTotalUsd: number;
-  approximateTotalTomanBillionFa: string;
+  approximateTotalEur: number;
+  approximateTotalFa: string;
+  approximateTotalTomanBillionFa?: string;
   formulaNotesFa: string;
   rateEffectiveDate: string;
   isCurrentDataVerified: boolean;
@@ -234,4 +238,14 @@ export interface RecommendationSummary {
   overallRoadmapSummaryFa: string;
   evaluationTimestamp: string;
   isUnderAge18: boolean;
+  specificTargetCountryResult?: {
+    countryName: string;
+    route?: RecommendedRouteResult;
+    isInTop3: boolean;
+    qualificationGapsFa: string[];
+    requiredActionsFa: string[];
+    budgetRequirementFa: string;
+    languageRequirementFa: string;
+    summaryFa: string;
+  } | null;
 }

@@ -16,7 +16,9 @@ export interface ComputedCostResult {
   estimatedFirstYearTotal: number;
   estimatedFirstYearTotalFa: string;
   approximateTotalUsd: number;
-  approximateTotalTomanBillionFa: string;
+  approximateTotalEur: number;
+  approximateTotalFa: string;
+  approximateTotalTomanBillionFa?: string;
   formulaNotesFa: string;
   rateEffectiveDate: string;
   isCurrentDataVerified: boolean;
@@ -97,16 +99,11 @@ export function calculateRouteCost(route: RouteDefinition, profile: UserAssessme
     Math.round(pof.livingAmountSingle + dependentsAllowance + annualTuition + travelInCurrency - scholarshipDeduction)
   );
 
-  // Convert to USD and approximate Tomans for Iranian users' financial planning
+  // Convert to USD and EUR for international financial planning (No Toman/Rial)
   const rateToUsd = USD_RATES[pof.currency] || 1.0;
   const approxTotalUsd = Math.round(totalInCurrency * rateToUsd);
-  
-  // Approximate conversion to Tomans (with clear notice)
-  // Assuming benchmark indicative planning rate ~65,000 Tomans per USD
-  const tomanBillions = (approxTotalUsd * 65000) / 1_000_000_000;
-  const tomanStr = tomanBillions >= 1 
-    ? `حدود ${tomanBillions.toFixed(1)} میلیارد تومان` 
-    : `حدود ${Math.round(tomanBillions * 1000)} میلیون تومان`;
+  const approxTotalEur = Math.round(approxTotalUsd / 1.09);
+  const approxTotalFa = `معادل حدود ${approxTotalUsd.toLocaleString()} دلار (~${approxTotalEur.toLocaleString()} یورو)`;
 
   const formulaNotesFa = isStudy
     ? `فرمول محاسبه: تمکن زندگی پایه (${pof.livingAmountSingle.toLocaleString()} ${pof.currency})${dependentsAllowance > 0 ? ` + هزینه همراهان (${dependentsAllowance.toLocaleString()} ${pof.currency})` : ""} + شهریه برآورد شده دوره (${annualTuition.toLocaleString()} ${pof.currency}) + بلیت و ودیعه استقرار اولیه (${travelInCurrency.toLocaleString()} ${pof.currency})${scholarshipDeduction > 0 ? ` - کسر کمک‌هزینه احتمالی (${scholarshipDeduction.toLocaleString()} ${pof.currency})` : ""}.`
@@ -127,7 +124,9 @@ export function calculateRouteCost(route: RouteDefinition, profile: UserAssessme
     estimatedFirstYearTotal: totalInCurrency,
     estimatedFirstYearTotalFa: `${totalInCurrency.toLocaleString()} ${pof.currency}`,
     approximateTotalUsd: approxTotalUsd,
-    approximateTotalTomanBillionFa: tomanStr,
+    approximateTotalEur: approxTotalEur,
+    approximateTotalFa: approxTotalFa,
+    approximateTotalTomanBillionFa: `~${approxTotalUsd.toLocaleString()} $ / ~${approxTotalEur.toLocaleString()} €`,
     formulaNotesFa,
     rateEffectiveDate: pof.effectiveFrom || "2026-10-04",
     isCurrentDataVerified: true
