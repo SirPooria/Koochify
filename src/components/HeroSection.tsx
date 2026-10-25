@@ -40,21 +40,20 @@ export default function HeroSection({
         {/* Release & Compliance Badge */}
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-100/70 border border-emerald-300/60 text-emerald-900 text-xs font-semibold mb-6 shadow-2xs">
           <ShieldCheck className="w-4 h-4 text-emerald-700" />
-          <span>منطبق با مانیفست‌های مهاجرتی رسمی سال ۲۰۲۶ و داده‌های معتبر بین‌المللی</span>
+          <span>سامانه رسمی تصمیم‌یار مهاجرت | منطبق بر آخرین قوانین ویزای کاری و تحصیلی ۲۰۲۶</span>
         </div>
 
         {/* Main Title */}
         <h1 className="text-3xl sm:text-5xl font-black text-slate-900 tracking-tight leading-tight sm:leading-snug mb-4 font-sans">
-          از سردرگمی اولیه تا یک برنامه{" "}
+          از سردرگمی بین صدها روش مهاجرتی تا{" "}
           <span className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 bg-clip-text text-transparent">
-            مهاجرتی شفاف و مستند
+            ۳ مقصد طلایی با نقشه راه مستند ۲۰۲۶
           </span>
         </h1>
 
         {/* Subtitle */}
         <p className="text-base sm:text-lg text-slate-600 max-w-3xl mx-auto leading-relaxed mb-8">
-          کوچیفای شرایط، سوابق تحصیلی، شغلی، بودجه و زبان شما را با مقررات رسمی ۳۰ کشور ارزیابی می‌کند 
-          تا به جای شعارهای تبلیغاتی، <strong>۳ مقصد برتر با مسیرهای ویزای مشخص، شروط واقعی و چک‌لیست دقیق</strong> دریافت کنید.
+          به جای ماه‌ها جستجوی فرسایشی و شنیدن ادعاهای سلیقه‌ای، سن، سوابق تحصیلی، شغلی، سطح زبان و بودجه‌ات را با مقررات رسمی بیش از <strong>۳۰ کشور برتر جهان</strong> بسنج؛ تا در ۵ دقیقه <strong>۳ مقصد بهینه با بالاترین شانس قبولی، ریز تمکن مالی واقعی و چک‌لیست گام‌به‌گام</strong> را دریافت کنی.
         </p>
 
         {/* Legal Disclaimer Box */}
@@ -70,7 +69,7 @@ export default function HeroSection({
         {/* Goal Selector Cards */}
         <div className="max-w-3xl mx-auto mb-10 text-right">
           <label className="block text-sm font-bold text-slate-800 mb-3 text-center">
-            گام اول: هدف یا گرایش اولیه شما برای مهاجرت چیست؟
+            گام اول: قصد داری از چه مسیری آینده‌ات را بسازی؟
           </label>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {/* Study */}
@@ -93,7 +92,7 @@ export default function HeroSection({
               <div>
                 <h4 className="font-bold text-sm mb-1">مهاجرت تحصیلی</h4>
                 <p className={`text-xs leading-relaxed ${selectedGoal === "study" ? "text-emerald-100" : "text-slate-500"}`}>
-                  دانشگاه‌ها، دوره‌های ارشد و دکترا، بورسیه‌ها و اقامت پس از تحصیل
+                  پذیرش دانشگاهی، بورسیه‌ها، ارشد و دکترا + مسیر تضمین اقامت کاری پس از تحصیل
                 </p>
               </div>
             </div>
@@ -116,9 +115,9 @@ export default function HeroSection({
                 {selectedGoal === "work" && <CheckCircle2 className="w-5 h-5 text-white" />}
               </div>
               <div>
-                <h4 className="font-bold text-sm mb-1">مهاجرت کاری</h4>
+                <h4 className="font-bold text-sm mb-1">مهاجرت کاری و مهارتی</h4>
                 <p className={`text-xs leading-relaxed ${selectedGoal === "work" ? "text-emerald-100" : "text-slate-500"}`}>
-                  جاب‌آفر کارفرمایی، ویزاهای امتیازی، کارت شانس و بلوکارت
+                  جاب‌آفر کارفرمایی، اسکیل‌ورکر امتیازی، کارت شانس آلمان و بلوکارت اروپا
                 </p>
               </div>
             </div>
@@ -141,9 +140,9 @@ export default function HeroSection({
                 {selectedGoal === "both" && <CheckCircle2 className="w-5 h-5 text-white" />}
               </div>
               <div>
-                <h4 className="font-bold text-sm mb-1">هر دو مسیر</h4>
+                <h4 className="font-bold text-sm mb-1">مقایسه همزمان هر دو مسیر</h4>
                 <p className={`text-xs leading-relaxed ${selectedGoal === "both" ? "text-emerald-100" : "text-slate-500"}`}>
-                  بررسی و مقایسه همزمان مسیرهای تحصیلی و کاری برای یافتن بهینه‌ترین راه
+                  بین کار و تحصیل مرددی؟ مقایسه شانس، زمان و هزینه هر دو راه در ۳۰ مقصد برتر
                 </p>
               </div>
             </div>
@@ -168,7 +167,7 @@ export default function HeroSection({
               <div>
                 <h4 className="font-bold text-sm mb-1">هنوز مطمئن نیستم</h4>
                 <p className={`text-xs leading-relaxed ${selectedGoal === "unsure" ? "text-emerald-100" : "text-slate-500"}`}>
-                  راهنمایی هوشمند گام‌به‌گام برای کشف مسیر متناسب با شرایط شخصی
+                  کشف مسیر اختصاصی متناسب با سن، سرمایه اولیه و تخصص شما با پیشنهاد هوشمند
                 </p>
               </div>
             </div>
@@ -181,7 +180,7 @@ export default function HeroSection({
             onClick={onStartAssessment}
             className="w-full sm:w-auto px-8 py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-base shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-[0.98]"
           >
-            <span>شروع ارزیابی هوشمند من</span>
+            <span>شروع ارزیابی هوشمند و دریافت ۳ مقصد برتر</span>
             <ArrowLeft className="w-5 h-5" />
           </button>
 
@@ -190,7 +189,7 @@ export default function HeroSection({
             className="w-full sm:w-auto px-6 py-4 rounded-2xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-bold text-sm transition-colors flex items-center justify-center gap-2"
           >
             <Globe className="w-4 h-4 text-slate-500" />
-            <span>کاتالوگ و شرایط ۳۰ کشور</span>
+            <span>کاتالوگ و قوانین ۳۰ کشور (رایگان)</span>
           </button>
 
           <button
@@ -198,7 +197,7 @@ export default function HeroSection({
             className="w-full sm:w-auto px-6 py-4 rounded-2xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-bold text-sm transition-colors flex items-center justify-center gap-2"
           >
             <FileText className="w-4 h-4 text-emerald-600" />
-            <span>تحلیل و بهینه‌سازی رزومه</span>
+            <span>رزومه‌یار بین‌المللی ATS</span>
           </button>
         </div>
 
