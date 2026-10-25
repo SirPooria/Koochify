@@ -121,6 +121,31 @@ const STEPS = [
   { id: 7, title: "ترجیحات مقصد", icon: Heart }
 ];
 
+function getFirstName(fullName?: string): string {
+  if (!fullName) return "";
+  const cleaned = fullName.trim();
+  if (!cleaned) return "";
+
+  const parts = cleaned.split(/\s+/).filter(Boolean);
+  if (parts.length <= 1) return cleaned;
+
+  // Handle common Persian compound first names (e.g. محمد رضا, امیر علی, سید علی)
+  const compoundPrefixes = ["محمد", "امیر", "سید", "سیده", "نازنین", "میر"];
+  if (parts.length >= 3 && compoundPrefixes.includes(parts[0])) {
+    return `${parts[0]} ${parts[1]}`;
+  }
+
+  if (parts.length === 2) {
+    const commonCompoundSecond = ["رضا", "علی", "حسین", "محمد", "مهدی", "جواد", "حسن", "صادق", "باقر", "هادی", "امیر"];
+    if (compoundPrefixes.includes(parts[0]) && commonCompoundSecond.includes(parts[1])) {
+      return `${parts[0]} ${parts[1]}`;
+    }
+    return parts[0];
+  }
+
+  return parts[0];
+}
+
 export default function AssessmentWizard({
   initialGoal,
   onSubmit,
@@ -200,7 +225,9 @@ export default function AssessmentWizard({
   };
 
   const currentFullName = profile.fullName?.trim() || user?.fullName?.trim() || "";
-  const displayName = currentFullName || "همراه عزیز";
+  const firstName = inputFirstName.trim() || getFirstName(currentFullName);
+  const assistantGreetingName = firstName || "همراه عزیز";
+  const displayName = firstName || "همراه";
 
   // If user hasn't passed assistant greeting, show introduction card first
   if (!isIntroduced) {
@@ -228,7 +255,7 @@ export default function AssessmentWizard({
             <div className="space-y-6 text-center relative z-10">
               <div className="bg-emerald-50/80 border-2 border-emerald-200 rounded-2xl p-6 shadow-2xs">
                 <p className="text-base sm:text-lg font-bold text-slate-800 leading-relaxed">
-                  « سلام <span className="text-emerald-700 font-black">{currentFullName}</span> من دستیار مهاجرتی کوچیفای هستم، سوالاتی که ازت می‌پرسم رو صادقانه و با دقت جواب بده تا منم بهتر بتونم کمکت کنم، آماده‌ای ؟ »
+                  « سلام <span className="text-emerald-700 font-black">{assistantGreetingName}</span> ! من دستیار مهاجرتی کوچیفای هستم، سوالاتی که ازت می‌پرسم رو صادقانه و با دقت جواب بده تا منم بهتر بتونم کمکت کنم، آماده‌ای ؟ »
                 </p>
               </div>
 
@@ -286,7 +313,7 @@ export default function AssessmentWizard({
                     <input
                       type="text"
                       required
-                      placeholder="محمد"
+                      placeholder="پوریا"
                       value={inputFirstName}
                       onChange={(e) => setInputFirstName(e.target.value)}
                       className="w-full px-4 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-bold focus:border-emerald-500 focus:bg-white focus:outline-hidden"
@@ -299,7 +326,7 @@ export default function AssessmentWizard({
                     <input
                       type="text"
                       required
-                      placeholder="محمدی"
+                      placeholder="رفوسه"
                       value={inputLastName}
                       onChange={(e) => setInputLastName(e.target.value)}
                       className="w-full px-4 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-bold focus:border-emerald-500 focus:bg-white focus:outline-hidden"
