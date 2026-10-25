@@ -14,7 +14,7 @@
       "destination": "/api"
     },
     {
-      "source": "/((?!api|37583893\\.txt).*)",
+      "source": "/((?!api|.*\\.[\\w]+$).*)",
       "destination": "/index.html"
     }
   ]
