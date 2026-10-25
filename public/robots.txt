@@ -1,0 +1,35 @@
+# Koochify Robots.txt - Optimized for Google Search and AI Answer Engines (GEO)
+# https://koochify.ir/
+
+# Standard Search Crawlers
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: Applebot
+Allow: /
+
+User-agent: Yandex
+Allow: /
+
+# AI Answer Engines & Search Bots (ChatGPT Search, Claude Search, Perplexity)
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: Claude-SearchBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+# General Policy
+User-agent: *
+Allow: /
+Disallow: /api/admin/
+Disallow: /api/payment/verify/
+
+# Sitemap & LLMs Map
+Sitemap: https://koochify.ir/sitemap.xml
+Host: https://koochify.ir

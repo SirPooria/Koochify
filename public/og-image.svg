@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0a192f" />
+      <stop offset="50%" stop-color="#0f2942" />
+      <stop offset="100%" stop-color="#064e3b" />
+    </linearGradient>
+    <linearGradient id="brandGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981" />
+      <stop offset="50%" stop-color="#14b8a6" />
+      <stop offset="100%" stop-color="#06b6d4" />
+    </linearGradient>
+    <radialGradient id="glow" cx="80%" cy="20%" r="50%">
+      <stop offset="0%" stop-color="#10b981" stop-opacity="0.3" />
+      <stop offset="100%" stop-color="#10b981" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#bg)" />
+  <rect width="1200" height="630" fill="url(#glow)" />
+
+  <!-- Grid overlay -->
+  <g opacity="0.06" stroke="#ffffff" stroke-width="1">
+    <line x1="0" y1="105" x2="1200" y2="105" />
+    <line x1="0" y1="210" x2="1200" y2="210" />
+    <line x1="0" y1="315" x2="1200" y2="315" />
+    <line x1="0" y1="420" x2="1200" y2="420" />
+    <line x1="0" y1="525" x2="1200" y2="525" />
+    <line x1="200" y1="0" x2="200" y2="630" />
+    <line x1="400" y1="0" x2="400" y2="630" />
+    <line x1="600" y1="0" x2="600" y2="630" />
+    <line x1="800" y1="0" x2="800" y2="630" />
+    <line x1="1000" y1="0" x2="1000" y2="630" />
+  </g>
+
+  <!-- Logo Mark -->
+  <g transform="translate(100, 100)">
+    <rect width="90" height="90" rx="24" fill="url(#brandGrad)" />
+    <!-- Compass Icon -->
+    <circle cx="45" cy="45" r="28" fill="none" stroke="#ffffff" stroke-width="3.5" opacity="0.9" />
+    <polygon points="45,22 53,45 45,39" fill="#ffffff" />
+    <polygon points="45,68 53,45 45,39" fill="#0f172a" opacity="0.8" />
+    <polygon points="45,68 37,45 45,39" fill="#1e293b" opacity="0.9" />
+    <polygon points="45,22 37,45 45,39" fill="#e2e8f0" />
+    <circle cx="45" cy="45" r="4" fill="#ffffff" />
+  </g>
+
+  <!-- Brand Name Tag -->
+  <text x="215" y="145" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="34" fill="#ffffff" direction="rtl">کوچیفای (Koochify)</text>
+  <text x="215" y="178" font-family="system-ui, -apple-system, sans-serif" font-weight="600" font-size="18" fill="#34d399" direction="rtl">سامانه هوشمند تصمیم‌یار مهاجرت تحصیلی و کاری ۲۰۲۶</text>
+
+  <!-- Big Hero Persian Headline -->
+  <text x="1100" y="310" text-anchor="end" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="52" fill="#ffffff" direction="rtl">شبیه‌سازی دقیق شانس مهاجرت شما</text>
+  <text x="1100" y="375" text-anchor="end" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="44" fill="#6ee7b7" direction="rtl">بر مبنای قوانین و تمکن‌های رسمی سال ۲۰۲۶</text>
+
+  <!-- Subheadline -->
+  <text x="1100" y="445" text-anchor="end" font-family="system-ui, -apple-system, sans-serif" font-weight="500" font-size="22" fill="#cbd5e1" direction="rtl">کانادا | آلمان | ایتالیا | استرالیا | بریتانیا | هلند | سوئد</text>
+
+  <!-- Bottom Badges -->
+  <g transform="translate(100, 510)">
+    <rect width="230" height="48" rx="14" fill="#ffffff" fill-opacity="0.1" stroke="#34d399" stroke-width="1.5" />
+    <text x="115" y="30" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-weight="700" font-size="16" fill="#6ee7b7">✓ بدون تعصب تبلیغاتی آژانس‌ها</text>
+  </g>
+
+  <g transform="translate(350, 510)">
+    <rect width="230" height="48" rx="14" fill="#ffffff" fill-opacity="0.1" stroke="#38bdf8" stroke-width="1.5" />
+    <text x="115" y="30" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-weight="700" font-size="16" fill="#38bdf8">✓ تمکن رسمی دلاری و یورویی</text>
+  </g>
+
+  <g transform="translate(600, 510)">
+    <rect width="210" height="48" rx="14" fill="#ffffff" fill-opacity="0.1" stroke="#a78bfa" stroke-width="1.5" />
+    <text x="105" y="30" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-weight="700" font-size="16" fill="#c4b5fd">✓ بررسی شروط حقوقی ویزا</text>
+  </g>
+
+  <!-- Domain Tag -->
+  <text x="1100" y="540" text-anchor="end" font-family="monospace" font-weight="700" font-size="24" fill="#38bdf8">koochify.ir</text>
+</svg>
