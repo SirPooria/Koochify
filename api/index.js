@@ -99,7 +99,7 @@ async function createOtp(phoneNumber) {
 }
 async function verifyOtpCode(phoneNumber, code) {
   const normPhone = normalizePhoneNumber(phoneNumber);
-  const cleanCode = code.trim();
+  const cleanCode = String(code ?? "").trim();
   const now = Date.now();
   if (supabase) {
     const { data, error } = await supabase.from("otps").select("id").eq("phone_number", normPhone).eq("code", cleanCode).eq("used", false).gt("expires_at", now).order("created_at", { ascending: false }).limit(1).maybeSingle();

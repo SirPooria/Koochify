@@ -191,7 +191,7 @@ export async function createOtp(phoneNumber: string): Promise<{ code: string; ex
  */
 export async function verifyOtpCode(phoneNumber: string, code: string): Promise<boolean> {
   const normPhone = normalizePhoneNumber(phoneNumber);
-  const cleanCode = code.trim();
+  const cleanCode = String(code ?? "").trim();
   const now = Date.now();
 
   if (supabase) {
