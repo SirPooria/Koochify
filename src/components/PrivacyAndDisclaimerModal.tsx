@@ -186,7 +186,7 @@ export const PrivacyAndDisclaimerModal: React.FC<PrivacyAndDisclaimerModalProps>
                   <strong className="block text-emerald-300 font-bold text-sm mb-1">
                     اصل حداقل‌سازی داده‌ها (Privacy by Design):
                   </strong>
-                  تمامی ارزیابی‌ها به طور کامل در مرورگر شما پردازش و ذخیره می‌شوند. ما داده‌های مالی، هویتی و رزومه شما را در هیچ سرور یا پایگاه داده عمومی ذخیره نمی‌کنیم.
+                  تمامی ارزیابی‌ها به طور کاملاً امن و محرمانه پردازش می‌شوند. ما داده‌های مالی، هویتی و رزومه شما را در اختیار هیچ شخص یا نهاد ثالثی قرار نمی‌دهیم.
                 </div>
               </div>
 
@@ -203,7 +203,7 @@ export const PrivacyAndDisclaimerModal: React.FC<PrivacyAndDisclaimerModalProps>
                 <div className="p-3.5 bg-slate-950/60 rounded-xl border border-slate-800 space-y-2">
                   <h4 className="font-bold text-slate-200">چگونگی نگهداری رزومه:</h4>
                   <p className="text-slate-400 leading-relaxed">
-                    متن رزومه واردشده صرفاً در حافظه موقت تب مرورگر (یا localStorage دستگاه شخصی خودتان در صورت انتخاب) پردازش می‌شود و برای تحلیل ATS هیچ اتصالی به سیستم‌های عمومی بدون رضایت شما برقرار نمی‌گردد.
+                    متن و سوابق رزومه واردشده صرفاً جهت بررسی و تطبیق استاندارد ATS برای موقعیت‌های شغلی خارجی استفاده شده و تحت هیچ شرایطی ذخیره عمومی یا افشا نمی‌گردد.
                   </p>
                 </div>
               </div>
@@ -222,7 +222,7 @@ export const PrivacyAndDisclaimerModal: React.FC<PrivacyAndDisclaimerModalProps>
                   </div>
                   {userProfile && (
                     <span className="px-2 py-0.5 rounded text-[11px] bg-emerald-500/10 text-emerald-400 font-medium">
-                      ذخیره در مرورگر
+                      ذخیره امن روی دستگاه
                     </span>
                   )}
                 </div>
@@ -271,7 +271,7 @@ export const PrivacyAndDisclaimerModal: React.FC<PrivacyAndDisclaimerModalProps>
                   حذف کامل تمام اطلاعات ارزیابی و رزومه از دستگاه
                 </div>
                 <p className="text-[11px] text-slate-400 leading-relaxed">
-                  با این کار، تمامی پاسخ‌های فرم ارزیابی، مقاصد ذخیره‌شده و تحلیل رزومه به صورت غیرقابل بازگشت از حافظه مرورگر پاک شده و سامانه به حالت اولیه بازمی‌گردد.
+                  با این کار، تمامی پاسخ‌های فرم ارزیابی، مقاصد ذخیره‌شده و تحلیل رزومه به صورت کامل از دستگاه شما پاک شده و سامانه به حالت اولیه بازمی‌گردد.
                 </p>
 
                 {!purgeConfirmOpen ? (

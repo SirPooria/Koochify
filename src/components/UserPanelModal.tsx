@@ -113,7 +113,7 @@ export default function UserPanelModal({
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm("آیا از حذف این پرونده ارزیابی از دیتابیس اطمینان دارید؟")) {
+    if (!window.confirm("آیا از حذف این پرونده ارزیابی از حساب کاربری اطمینان دارید؟")) {
       return;
     }
 
@@ -132,7 +132,7 @@ export default function UserPanelModal({
     try {
       await saveAssessmentToCloud(currentProfile, currentResults);
       await loadAssessments();
-      setStatusMessage({ text: "ارزیابی جاری با موفقیت در دیتابیس حساب شما ذخیره شد.", type: "success" });
+      setStatusMessage({ text: "ارزیابی جاری با موفقیت در حساب کاربری شما ذخیره شد.", type: "success" });
       if (onAssessmentSaved) onAssessmentSaved();
     } catch (e: any) {
       setStatusMessage({ text: e.message || "خطا در ذخیره‌سازی", type: "error" });
@@ -279,10 +279,10 @@ export default function UserPanelModal({
                 </div>
                 <div>
                   <h4 className="font-bold text-xs text-slate-900">
-                    یک ارزیابی در این نشست مرورگر فعال است
+                    یک ارزیابی آماده ذخیره در حساب شماست
                   </h4>
                   <p className="text-[11px] text-slate-600">
-                    برای اینکه هرگز آن را گم نکنید و همیشه با این شماره تماس به آن دسترسی داشته باشید، آن را در دیتابیس ذخیره کنید.
+                    برای اینکه همیشه به این ارزیابی و ۳ مقصد منتخب دسترسی داشته باشید، آن را به پرونده‌های خود اضافه کنید.
                   </p>
                 </div>
               </div>
@@ -326,7 +326,7 @@ export default function UserPanelModal({
           {isLoading ? (
             <div className="py-12 flex flex-col items-center justify-center text-slate-400 gap-3">
               <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
-              <span className="text-xs font-medium">در حال فراخوانی پرونده‌ها از دیتابیس...</span>
+              <span className="text-xs font-medium">در حال فراخوانی پرونده‌های شما...</span>
             </div>
           ) : assessments.length === 0 ? (
             <div className="py-12 text-center bg-slate-50 border border-slate-200/80 rounded-2xl p-6">
@@ -335,7 +335,7 @@ export default function UserPanelModal({
                 هنوز پرونده ارزیابی در حساب شما ذخیره نشده است
               </h5>
               <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed mb-4">
-                فرم ارزیابی هوشمند را تکمیل کنید تا تحلیل ۳ مقصد برتر و شروط قانونی به صورت ابری در دیتابیس این شماره ذخیره شود.
+                فرم ارزیابی هوشمند را تکمیل کنید تا تحلیل ۳ مقصد برتر و نقشه راه اختصاصی همیشه در حساب شما محفوظ بماند.
               </p>
               <button
                 onClick={onClose}
@@ -426,7 +426,7 @@ export default function UserPanelModal({
         <div className="bg-slate-50 px-6 py-3.5 border-t border-slate-200/70 flex items-center justify-between text-xs text-slate-500 shrink-0">
           <span className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-            اتصال به دیتابیس امن کوچیفای برقرار است
+            حساب کاربری شما فعال و امن است
           </span>
           <button
             onClick={onClose}

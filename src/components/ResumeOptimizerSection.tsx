@@ -118,8 +118,8 @@ ${(profile.toolsAndTechStack || ["Python", "TypeScript", "SQL"]).join(", ")}`
       <div className="p-4 rounded-2xl bg-cyan-50/70 border border-cyan-200/80 text-cyan-950 text-xs leading-relaxed flex items-start gap-3">
         <ShieldCheck className="w-5 h-5 text-cyan-700 shrink-0 mt-0.5" />
         <div>
-          <strong className="font-bold text-cyan-950">تضمین حریم خصوصی و امنیت داده‌ها: </strong>
-          پردازش رزومه شما کاملاً به صورت محلی در مرورگر شما انجام می‌شود. هیچ سندی ذخیره، به سرور خارجی ارسال یا برای آموزش مدل‌ها استفاده نمی‌شود. شما می‌توانید در هر زمان با زدن دکمه پاکسازی، تمام محتوا را بلافاصله حذف نمایید.
+          <strong className="font-bold text-cyan-950">تضمین محرمانگی و حریم خصوصی: </strong>
+          اطلاعات و سوابق شغلی شما کاملاً محرمانه بررسی می‌شود و با هیچ شخص یا نهاد ثالثی به اشتراک گذاشته نخواهد شد. شما می‌توانید در هر لحظه اطلاعات خود را پاکسازی نمایید.
         </div>
       </div>
 

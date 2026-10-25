@@ -345,7 +345,7 @@ export default function App() {
                     ورود به سامانه برای شروع ارزیابی
                   </h3>
                   <p className="text-xs text-slate-600 leading-relaxed mb-6">
-                    جهت ثبت امن و دائمی پرونده ارزیابی شما در پایگاه داده، لطفاً با شماره همراه خود وارد شوید (کد تستی ورود فوری: <strong className="text-emerald-700 font-mono text-sm">۱۲۳۴۵</strong>).
+                    جهت ذخیره اختصاصی و دسترسی همیشگی به پرونده ارزیابی و نتایج تحلیلی، لطفاً با شماره همراه خود وارد شوید.
                   </p>
                   <button
                     onClick={() => {

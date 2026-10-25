@@ -188,26 +188,10 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }: AuthModal
             </form>
           ) : (
             <form onSubmit={handleVerifyOtp} className="space-y-4">
-              {devCode ? (
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl flex items-center justify-between text-xs text-amber-900 mb-2">
-                  <div className="flex items-center gap-1.5">
-                    <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
-                    <span>کد تستی شبیه‌ساز: <strong className="font-mono text-sm font-bold text-amber-800">{devCode}</strong></span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setOtpCode(devCode)}
-                    className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[11px] font-bold transition-colors cursor-pointer"
-                  >
-                    درج خودکار
-                  </button>
-                </div>
-              ) : (
-                <div className="p-3 bg-emerald-50 border border-emerald-200/80 rounded-2xl flex items-center gap-2 text-xs text-emerald-900 mb-2">
-                  <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span className="leading-snug">کد تأیید ۵ رقمی از طریق سامانه پیامکی ملی‌پیامک ارسال شد.</span>
-                </div>
-              )}
+              <div className="p-3 bg-emerald-50 border border-emerald-200/80 rounded-2xl flex items-center gap-2 text-xs text-emerald-900 mb-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span className="leading-snug">کد تأیید ورود به شماره {phoneNumber} پیامک شد.</span>
+              </div>
 
               <div>
                 <div className="flex items-center justify-between mb-1.5">

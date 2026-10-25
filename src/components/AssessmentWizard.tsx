@@ -371,7 +371,7 @@ export default function AssessmentWizard({
           </div>
           <div className="text-xs text-slate-400 flex items-center gap-1.5 font-medium">
             <Save className="w-3.5 h-3.5 text-emerald-500" />
-            <span>ذخیره خودکار در مرورگر</span>
+            <span>ذخیره خودکار پیش‌نویس</span>
           </div>
         </div>
 

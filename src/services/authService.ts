@@ -168,7 +168,7 @@ export async function sendOtp(phoneNumber: string): Promise<{
     body: JSON.stringify({ phoneNumber }),
   });
 
-  return await parseJsonResponse(res, "خطا در ارتباط با سرور ارسال پیامک کد تأیید");
+  return await parseJsonResponse(res, "خطا در برقراری ارتباط. لطفاً لحظاتی بعد مجدداً تلاش کنید.");
 }
 
 /**
@@ -284,7 +284,7 @@ export async function saveAssessmentToCloud(
 ): Promise<SavedAssessmentRecord> {
   const token = getStoredToken();
   if (!token) {
-    throw new Error("برای ذخیره پرونده در دیتابیس ابتدا وارد حساب کاربری خود شوید.");
+    throw new Error("برای ذخیره پرونده، ابتدا وارد حساب کاربری خود شوید.");
   }
 
   const res = await fetch("/api/user/assessments", {

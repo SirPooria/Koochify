@@ -1010,6 +1010,9 @@ app.get(["/api", "/api/health"], (req, res) => {
 app.get("/37583893.txt", (req, res) => {
   return res.type("text/plain").status(200).send("");
 });
+app.get("/google29043ff9460cc375.html", (req, res) => {
+  return res.type("text/html").status(200).send("google-site-verification: google29043ff9460cc375.html");
+});
 app.get("/api/sms/status", (req, res) => {
   const username = process.env.MELIPAYAMAK_USERNAME || process.env.SMS_USERNAME || "989387596456";
   const bodyId = process.env.MELIPAYAMAK_BODY_ID || process.env.SMS_BODY_ID || "567584";
@@ -1192,8 +1195,8 @@ app.get("/api/payment/config", (req, res) => {
     amountRials: 499e4,
     cardNumber: process.env.CARD_NUMBER || "6037-9979-1234-5678",
     cardHolder: process.env.CARD_HOLDER || "\u0628\u0647 \u0646\u0627\u0645 \u0645\u062F\u06CC\u0631\u06CC\u062A \u0633\u0627\u0645\u0627\u0646\u0647 \u06A9\u0648\u0686\u06CC\u0641\u0627\u06CC",
-    bankName: process.env.BANK_NAME || "\u0628\u0627\u0646\u06A9 \u0645\u0644\u06CC \u0627\u06CC\u0631\u0627\u0646",
-    hasOnlineGateway: Boolean(process.env.MERCHANT_ID),
+    hasOnlineGateway: Boolean(process.env.ZIBAL_MERCHANT_KEY || process.env.MERCHANT_ID || "6addde0e944acf62f5fd1438"),
+    gatewayName: "\u062F\u0631\u06AF\u0627\u0647 \u067E\u0631\u062F\u0627\u062E\u062A \u0632\u06CC\u0628\u0627\u0644 (\u0634\u0627\u067E\u0631\u06A9)",
     autoUnlockCardToCard: process.env.AUTO_UNLOCK_CARD_TO_CARD !== "false"
   });
 });
@@ -1247,49 +1250,97 @@ app.post("/api/payment/instant-unlock", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: "\u062E\u0637\u0627 \u062F\u0631 \u062A\u0627\u06CC\u06CC\u062F \u067E\u0631\u062F\u0627\u062E\u062A." });
   }
 });
-app.post("/api/payment/zarinpal/request", authMiddleware, async (req, res) => {
+var handleOnlinePaymentRequest = async (req, res) => {
   try {
-    const merchantId = process.env.MERCHANT_ID;
-    const appUrl = process.env.APP_URL || `http://localhost:${process.env.PORT || 3001}`;
-    const callbackUrl = `${appUrl}/api/payment/zarinpal/callback?userId=${req.user.id}`;
+    const merchant = process.env.ZIBAL_MERCHANT_KEY || process.env.MERCHANT_ID || "6addde0e944acf62f5fd1438";
+    const appUrl = process.env.APP_URL && !process.env.APP_URL.includes("localhost") ? process.env.APP_URL.replace(/\/+$/, "") : "https://koochify.ir";
+    const callbackUrl = `${appUrl}/api/payment/zibal/callback?userId=${req.user.id}`;
     const amountRials = 499e4;
-    if (merchantId && merchantId.length >= 30) {
-      try {
-        const zarinRes = await fetch("https://api.zarinpal.com/pg/v4/payment/request.json", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            merchant_id: merchantId,
-            amount: amountRials,
-            description: `\u0627\u0634\u062A\u0631\u0627\u06A9 \u062C\u0627\u0645\u0639 \u067E\u0631\u0648\u0646\u062F\u0647 \u0645\u0647\u0627\u062C\u0631\u062A \u06A9\u0648\u0686\u06CC\u0641\u0627\u06CC - ${req.user.phoneNumber}`,
-            callback_url: callbackUrl,
-            metadata: { mobile: req.user.phoneNumber }
-          })
-        });
-        const zarinData = await zarinRes.json();
-        if (zarinData?.data?.code === 100 && zarinData?.data?.authority) {
-          return res.json({
-            success: true,
-            paymentUrl: `https://www.zarinpal.com/pg/StartPay/${zarinData.data.authority}`,
-            authority: zarinData.data.authority
-          });
-        }
-      } catch (zErr) {
-        console.warn("Zarinpal live gateway failed, falling back to instant sandbox simulator:", zErr);
-      }
+    const orderId = `KCF-${Date.now()}`;
+    console.log(`[ZIBAL REQUEST] \u0634\u0631\u0648\u0639 \u062F\u0631\u062E\u0648\u0627\u0633\u062A \u067E\u0631\u062F\u0627\u062E\u062A \u0628\u0647 \u0632\u06CC\u0628\u0627\u0644 \u0628\u0631\u0627\u06CC ${req.user.phoneNumber} \u0628\u0627 \u0645\u0631\u0686\u0646\u062A ${merchant}`);
+    const zibalRes = await fetch("https://gateway.zibal.ir/v1/request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        merchant,
+        amount: amountRials,
+        callbackUrl,
+        description: `\u0627\u0634\u062A\u0631\u0627\u06A9 \u062C\u0627\u0645\u0639 \u067E\u0631\u0648\u0646\u062F\u0647 \u0645\u0647\u0627\u062C\u0631\u062A \u06A9\u0648\u0686\u06CC\u0641\u0627\u06CC - ${req.user.phoneNumber}`,
+        orderId,
+        mobile: req.user.phoneNumber ? req.user.phoneNumber.replace(/^(\+98|0098)/, "0") : void 0
+      })
+    });
+    const zibalData = await zibalRes.json();
+    console.log("[ZIBAL RESPONSE]", zibalData);
+    if (zibalData?.result === 100 && zibalData?.trackId) {
+      return res.json({
+        success: true,
+        paymentUrl: `https://gateway.zibal.ir/start/${zibalData.trackId}`,
+        trackId: zibalData.trackId
+      });
     }
-    const mockAuthority = "A000000000000000000000000000" + Date.now();
-    return res.json({
-      success: true,
-      isSandbox: true,
-      paymentUrl: `/api/payment/simulate?userId=${req.user.id}&authority=${mockAuthority}`,
-      authority: mockAuthority
+    console.error("[ZIBAL GATEWAY ERROR]", zibalData);
+    let errorMessage = "\u062E\u0637\u0627 \u062F\u0631 \u0627\u062A\u0635\u0627\u0644 \u0628\u0647 \u062F\u0631\u06AF\u0627\u0647 \u067E\u0631\u062F\u0627\u062E\u062A \u0632\u06CC\u0628\u0627\u0644.";
+    if (zibalData?.result === 115) {
+      errorMessage = `\u062E\u0637\u0627\u06CC \u06F1\u06F1\u06F5 \u0632\u06CC\u0628\u0627\u0644: ${zibalData.message || "\u0622\u062F\u0631\u0633 IP \u0633\u0631\u0648\u0631 \u062F\u0631 \u067E\u0646\u0644 \u0632\u06CC\u0628\u0627\u0644 \u062B\u0628\u062A \u0646\u0634\u062F\u0647 \u0627\u0633\u062A."}`;
+    } else if (zibalData?.result === 102) {
+      errorMessage = "\u06A9\u062F \u0645\u0631\u0686\u0646\u062A \u0632\u06CC\u0628\u0627\u0644 \u0646\u0627\u0645\u0639\u062A\u0628\u0631 \u0627\u0633\u062A \u06CC\u0627 \u0647\u0646\u0648\u0632 \u0641\u0639\u0627\u0644 \u0646\u0634\u062F\u0647 \u0627\u0633\u062A.";
+    } else if (zibalData?.message) {
+      errorMessage = `\u067E\u0627\u0633\u062E \u062F\u0631\u06AF\u0627\u0647: ${zibalData.message}`;
+    }
+    return res.status(400).json({
+      error: errorMessage,
+      result: zibalData?.result,
+      message: zibalData?.message
     });
   } catch (err) {
     console.error("Error initiating online payment:", err);
-    return res.status(500).json({ error: "\u062E\u0637\u0627 \u062F\u0631 \u0628\u0631\u0642\u0631\u0627\u0631\u06CC \u0627\u0631\u062A\u0628\u0627\u0637 \u0628\u0627 \u062F\u0631\u06AF\u0627\u0647 \u067E\u0631\u062F\u0627\u062E\u062A." });
+    return res.status(500).json({ error: "\u062E\u0637\u0627 \u062F\u0631 \u0628\u0631\u0642\u0631\u0627\u0631\u06CC \u0627\u0631\u062A\u0628\u0627\u0637 \u0628\u0627 \u062F\u0631\u06AF\u0627\u0647 \u067E\u0631\u062F\u0627\u062E\u062A \u0632\u06CC\u0628\u0627\u0644." });
   }
-});
+};
+app.post("/api/payment/zibal/request", authMiddleware, handleOnlinePaymentRequest);
+app.post("/api/payment/zarinpal/request", authMiddleware, handleOnlinePaymentRequest);
+app.post("/api/payment/request", authMiddleware, handleOnlinePaymentRequest);
+var handleZibalCallback = async (req, res) => {
+  try {
+    const trackId = req.query.trackId || req.body?.trackId;
+    const success = req.query.success || req.body?.success;
+    const status = req.query.status || req.body?.status;
+    const userId = req.query.userId || req.body?.userId;
+    console.log(`[ZIBAL CALLBACK] \u0628\u0631\u06AF\u0634\u062A \u0627\u0632 \u062F\u0631\u06AF\u0627\u0647: trackId=${trackId}, success=${success}, status=${status}, userId=${userId}`);
+    if (String(success) === "1" && trackId && userId) {
+      const merchant = process.env.ZIBAL_MERCHANT_KEY || process.env.MERCHANT_ID || "6addde0e944acf62f5fd1438";
+      const verifyRes = await fetch("https://gateway.zibal.ir/v1/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          merchant,
+          trackId: Number(trackId)
+        })
+      });
+      const verifyData = await verifyRes.json();
+      console.log("[ZIBAL VERIFY RESULT]", verifyData);
+      if (verifyData?.result === 100 || verifyData?.result === 201) {
+        const refNumber = verifyData.refNumber || trackId;
+        const cardNumber = verifyData.cardNumber || "";
+        await updateUserPayment(String(userId), true, "paid", String(refNumber), cardNumber);
+        console.log(`[PAYMENT SUCCESS] \u067E\u0631\u062F\u0627\u062E\u062A \u06A9\u0627\u0631\u0628\u0631 ${userId} \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u062A\u0627\u06CC\u06CC\u062F \u0634\u062F. \u0634\u0645\u0627\u0631\u0647 \u062A\u0631\u0627\u06A9\u0646\u0634: ${refNumber}`);
+        return res.redirect(`https://koochify.ir/?payment=success&ref=${refNumber}`);
+      } else {
+        console.warn(`[ZIBAL VERIFY FAILED] \u062A\u0631\u0627\u06A9\u0646\u0634 \u062A\u0627\u06CC\u06CC\u062F \u0646\u0634\u062F: ${verifyData?.result} - ${verifyData?.message}`);
+        return res.redirect(`https://koochify.ir/?payment=failed&status=${verifyData?.result || status}`);
+      }
+    }
+    return res.redirect(`https://koochify.ir/?payment=cancelled&status=${status || "cancelled"}`);
+  } catch (err) {
+    console.error("Error in Zibal callback handler:", err);
+    return res.redirect("https://koochify.ir/?payment=error");
+  }
+};
+app.get("/api/payment/zibal/callback", handleZibalCallback);
+app.post("/api/payment/zibal/callback", handleZibalCallback);
+app.get("/api/payment/zarinpal/callback", handleZibalCallback);
+app.get("/api/payment/callback", handleZibalCallback);
 app.get("/api/payment/simulate", async (req, res) => {
   const { userId, authority } = req.query;
   if (userId) {
@@ -1297,35 +1348,6 @@ app.get("/api/payment/simulate", async (req, res) => {
     console.log(`[PAYMENT] \u067E\u0631\u062F\u0627\u062E\u062A \u0622\u0646\u0644\u0627\u06CC\u0646 \u0622\u0632\u0645\u0627\u06CC\u0634\u06CC \u062A\u0627\u06CC\u06CC\u062F \u0634\u062F \u0628\u0631\u0627\u06CC \u06A9\u0627\u0631\u0628\u0631: ${userId}`);
   }
   return res.redirect("/?payment=success");
-});
-app.get("/api/payment/zarinpal/callback", async (req, res) => {
-  const { Authority, Status, userId } = req.query;
-  if (Status === "OK" && userId) {
-    const merchantId = process.env.MERCHANT_ID;
-    let refId = String(Authority);
-    if (merchantId && merchantId.length >= 30) {
-      try {
-        const verifyRes = await fetch("https://api.zarinpal.com/pg/v4/payment/verify.json", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            merchant_id: merchantId,
-            amount: 499e4,
-            authority: Authority
-          })
-        });
-        const verifyData = await verifyRes.json();
-        if (verifyData?.data?.ref_id) {
-          refId = String(verifyData.data.ref_id);
-        }
-      } catch (vErr) {
-        console.error("ZarinPal verify error:", vErr);
-      }
-    }
-    await updateUserPayment(String(userId), true, "paid", refId);
-    return res.redirect("/?payment=success");
-  }
-  return res.redirect("/?payment=cancelled");
 });
 var ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "koochify2026";
 var ADMIN_SECRET_TOKEN = crypto2.createHash("sha256").update(ADMIN_PASSWORD).digest("hex");

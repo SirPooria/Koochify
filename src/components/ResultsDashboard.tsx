@@ -105,7 +105,7 @@ export default function ResultsDashboard({
                     ? "bg-emerald-500/25 text-emerald-300 border-emerald-400/40"
                     : "bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500 shadow-md"
                 }`}
-                title="ذخیره ارزیابی در دیتابیس حساب شما"
+                title="ذخیره همیشگی ارزیابی در حساب کاربری"
               >
                 {isSavedToCloud ? (
                   <>
@@ -204,7 +204,7 @@ export default function ResultsDashboard({
                 می‌خواهید بعداً به این پرونده ارزیابی در پنل کاربری دسترسی داشته باشید؟
               </h4>
               <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
-                با شماره همراه خود وارد شوید تا این ۳ مقصد و جزئیات حقوقی پرونده در دیتابیس امن کوچیفای ذخیره شود و همیشه در دسترس باشد.
+                با شماره همراه خود وارد شوید تا این ۳ مقصد و جزئیات پرونده برای همیشه در حساب کاربری شما ذخیره شود و در هر زمان به آن دسترسی داشته باشید.
               </p>
             </div>
           </div>
@@ -248,7 +248,7 @@ export default function ResultsDashboard({
                 onClick={onSaveToCloud}
                 className="px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold hover:bg-emerald-100 transition-colors cursor-pointer"
               >
-                ذخیره در دیتابیس
+                ذخیره در پرونده‌های من
               </button>
             )}
             <button
