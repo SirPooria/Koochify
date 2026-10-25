@@ -20,6 +20,7 @@ import {
   getAllLeadsForAdmin,
   findUserById,
 } from "./server/db";
+import { sendOtpSms } from "./server/smsService";
 import crypto from "node:crypto";
 
 dotenv.config();
@@ -33,6 +34,24 @@ app.get(["/api", "/api/health"], (req, res) => {
     status: "ok",
     service: "koochify-api",
     time: new Date().toISOString(),
+  });
+});
+
+// SMS Provider Status Ping
+app.get("/api/sms/status", (req, res) => {
+  const username =
+    process.env.MELIPAYAMAK_USERNAME ||
+    process.env.SMS_USERNAME ||
+    "989387596456";
+  const bodyId =
+    process.env.MELIPAYAMAK_BODY_ID ||
+    process.env.SMS_BODY_ID ||
+    "567584";
+  return res.json({
+    provider: "melipayamak",
+    configured: Boolean(username),
+    usernameMasked: username ? username.slice(0, 4) + "***" + username.slice(-4) : null,
+    bodyId,
   });
 });
 
@@ -52,7 +71,7 @@ const authMiddleware = async (req: any, res: any, next: any) => {
 };
 
 // --- Auth Routes ---
-// Send OTP to phone number
+// Send OTP to phone number via Melipayamak pattern
 app.post("/api/auth/send-otp", async (req, res) => {
   try {
     const { phoneNumber } = req.body;
@@ -60,18 +79,29 @@ app.post("/api/auth/send-otp", async (req, res) => {
       return res.status(400).json({ error: "لطفاً شماره تلفن همراه را وارد کنید." });
     }
     const normPhone = normalizePhoneNumber(phoneNumber);
-    if (normPhone.length < 10) {
+    if (normPhone.length < 10 || !normPhone.startsWith("09")) {
       return res.status(400).json({ error: "شماره تلفن همراه وارد شده معتبر نیست. (مثال: ۰۹۱۲۳۴۵۶۷۸۹)" });
     }
     const { code, expiresAt } = await createOtp(normPhone);
-    console.log(`[AUTH] کد ورود برای ${normPhone}: ${code}`);
+
+    // Dispatch SMS via Melipayamak SendByBaseNumber2 (BodyId 567584)
+    const smsResult = await sendOtpSms(normPhone, code);
+
+    if (!smsResult.success && !smsResult.simulated) {
+      console.error(`[AUTH] خطا در ارسال پیامک ملی‌پیامک به ${normPhone}:`, smsResult.error);
+      return res.status(502).json({
+        error: smsResult.error || "خطا در ارسال پیامک کد تأیید از طرف سامانه ملی‌پیامک.",
+        code: smsResult.code,
+      });
+    }
 
     return res.json({
       success: true,
-      message: `کد تأیید ۵ رقمی به شماره ${normPhone} ارسال شد.`,
+      message: `کد تأیید ۵ رقمی به شماره ${normPhone} پیامک شد.`,
       phoneNumber: normPhone,
       expiresAt,
-      devCode: code, // Delivered for testing & instant trial
+      // devCode is only passed in simulation/offline mode
+      ...(smsResult.simulated ? { devCode: code } : {}),
     });
   } catch (err: any) {
     console.error("Error in /api/auth/send-otp:", err);
