@@ -37,6 +37,7 @@ export interface AdminLeadItem {
   latestDestination: string | null;
   latestRoute: string | null;
   latestScore: number | null;
+  latestGoal?: string | null;
 }
 
 export interface UserAssessmentRecord {
@@ -972,6 +973,7 @@ export async function getAllLeadsForAdmin(): Promise<AdminLeadItem[]> {
         card_last_digits,
         paid_at,
         user_assessments (
+          profile_data,
           results_data,
           created_at
         )
@@ -986,16 +988,19 @@ export async function getAllLeadsForAdmin(): Promise<AdminLeadItem[]> {
       let latestDestination: string | null = null;
       let latestRoute: string | null = null;
       let latestScore: number | null = null;
+      let latestGoal: string | null = null;
 
       if (assessmentsCount > 0) {
         const sorted = [...assessments].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         const latestResults = sorted[0]?.results_data;
+        const latestProfile = sorted[0]?.profile_data;
         const topDest = latestResults?.primaryDestinations?.[0];
         if (topDest) {
           latestDestination = topDest.countryNameFa || topDest.countryCode || null;
           latestRoute = topDest.routeNameFa || null;
           latestScore = topDest.fitScore ?? null;
         }
+        latestGoal = latestProfile?.migrationGoal || latestResults?.migrationGoal || null;
       }
 
       return {
@@ -1013,6 +1018,7 @@ export async function getAllLeadsForAdmin(): Promise<AdminLeadItem[]> {
         latestDestination,
         latestRoute,
         latestScore,
+        latestGoal,
       };
     });
   }
@@ -1027,7 +1033,7 @@ export async function getAllLeadsForAdmin(): Promise<AdminLeadItem[]> {
 
     return users.map((u) => {
       const asmtStmt = db.prepare(`
-        SELECT results_data FROM user_assessments 
+        SELECT profile_data, results_data FROM user_assessments 
         WHERE user_id = ? 
         ORDER BY created_at DESC
       `);
@@ -1037,6 +1043,7 @@ export async function getAllLeadsForAdmin(): Promise<AdminLeadItem[]> {
       let latestDestination: string | null = null;
       let latestRoute: string | null = null;
       let latestScore: number | null = null;
+      let latestGoal: string | null = null;
 
       if (assessmentsCount > 0) {
         try {
@@ -1046,6 +1053,12 @@ export async function getAllLeadsForAdmin(): Promise<AdminLeadItem[]> {
             latestDestination = topDest.countryNameFa || topDest.countryCode || null;
             latestRoute = topDest.routeNameFa || null;
             latestScore = topDest.fitScore ?? null;
+          }
+          if (asmts[0].profile_data) {
+            const parsedProf = JSON.parse(asmts[0].profile_data);
+            latestGoal = parsedProf.migrationGoal || parsed.migrationGoal || null;
+          } else {
+            latestGoal = parsed.migrationGoal || null;
           }
         } catch { }
       }
@@ -1065,6 +1078,7 @@ export async function getAllLeadsForAdmin(): Promise<AdminLeadItem[]> {
         latestDestination,
         latestRoute,
         latestScore,
+        latestGoal,
       };
     });
   }
@@ -1078,6 +1092,7 @@ export async function getAllLeadsForAdmin(): Promise<AdminLeadItem[]> {
     let latestDestination: string | null = null;
     let latestRoute: string | null = null;
     let latestScore: number | null = null;
+    let latestGoal: string | null = null;
 
     if (userAssessments.length > 0) {
       const topDest = userAssessments[0].resultsData?.primaryDestinations?.[0];
@@ -1086,6 +1101,7 @@ export async function getAllLeadsForAdmin(): Promise<AdminLeadItem[]> {
         latestRoute = topDest.routeNameFa || null;
         latestScore = topDest.fitScore ?? null;
       }
+      latestGoal = userAssessments[0].profileData?.migrationGoal || userAssessments[0].resultsData?.migrationGoal || null;
     }
 
     return {
@@ -1103,6 +1119,7 @@ export async function getAllLeadsForAdmin(): Promise<AdminLeadItem[]> {
       latestDestination,
       latestRoute,
       latestScore,
+      latestGoal,
     };
   });
 }

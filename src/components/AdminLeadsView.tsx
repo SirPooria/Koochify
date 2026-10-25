@@ -17,7 +17,15 @@ import {
   Calendar,
   LogOut,
   SlidersHorizontal,
-  Loader2
+  Loader2,
+  BarChart3,
+  PieChart,
+  TrendingUp,
+  GraduationCap,
+  Briefcase,
+  Globe,
+  Percent,
+  Award
 } from "lucide-react";
 import {
   AdminLeadItem,
@@ -123,11 +131,40 @@ export default function AdminLeadsView({ onBackToApp }: AdminLeadsViewProps) {
     }
   };
 
-  // Stats
+  // Stats & Big Data Mining Metrics
   const totalLeads = leads.length;
   const paidLeads = leads.filter((l) => l.isPaid).length;
   const pendingLeads = leads.filter((l) => l.paymentStatus === "pending_verification").length;
   const totalRevenueTomans = paidLeads * 499000;
+  const completedFormsCount = leads.filter((l) => (l.assessmentsCount || 0) > 0 || l.latestDestination).length;
+  const conversionRate = totalLeads > 0 ? ((paidLeads / totalLeads) * 100).toFixed(1) : "0";
+
+  // Goal Distribution: study vs work vs both
+  const studyCount = leads.filter((l) => l.latestGoal === "study").length;
+  const workCount = leads.filter((l) => l.latestGoal === "work").length;
+  const otherOrBothCount = leads.filter((l) => l.latestGoal && l.latestGoal !== "study" && l.latestGoal !== "work").length;
+  const totalWithGoal = studyCount + workCount + otherOrBothCount || (leads.length > 0 ? leads.length : 1);
+  const studyPct = Math.round((studyCount / totalWithGoal) * 100);
+  const workPct = Math.round((workCount / totalWithGoal) * 100);
+  const otherPct = Math.max(0, 100 - studyPct - workPct);
+
+  // Top Destination Breakdown
+  const destCounts: Record<string, number> = {};
+  leads.forEach((l) => {
+    if (l.latestDestination) {
+      destCounts[l.latestDestination] = (destCounts[l.latestDestination] || 0) + 1;
+    }
+  });
+  const sortedDestinations = Object.entries(destCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5);
+  const totalWithDest = Object.values(destCounts).reduce((a, b) => a + b, 0) || 1;
+
+  // Average Fit Score
+  const leadsWithScore = leads.filter((l) => l.latestScore !== null && l.latestScore !== undefined && l.latestScore > 0);
+  const avgScore = leadsWithScore.length > 0
+    ? Math.round(leadsWithScore.reduce((sum, l) => sum + (l.latestScore || 0), 0) / leadsWithScore.length)
+    : 0;
 
   // Filtered Leads
   const filteredLeads = leads.filter((l) => {
@@ -264,41 +301,57 @@ export default function AdminLeadsView({ onBackToApp }: AdminLeadsViewProps) {
           </div>
         )}
 
-        {/* Sales KPI Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Sales & Conversion KPI Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
           <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs flex items-center justify-between">
             <div>
-              <span className="text-xs font-bold text-slate-500 block mb-1">کل سرنخ‌ها (کاربران فرم/OTP)</span>
+              <span className="text-xs font-bold text-slate-500 block mb-1">کل کاربران (OTP/ثبت‌نام)</span>
               <span className="text-2xl font-black text-slate-900 font-mono">{totalLeads}</span>
             </div>
-            <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-700">
-              <Users className="w-6 h-6" />
+            <div className="w-11 h-11 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-700">
+              <Users className="w-5 h-5" />
             </div>
           </div>
 
           <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs flex items-center justify-between">
             <div>
-              <span className="text-xs font-bold text-slate-500 block mb-1">اشتراک‌های فعال (پرداخت‌شده)</span>
-              <span className="text-2xl font-black text-emerald-600 font-mono">{paidLeads}</span>
+              <span className="text-xs font-bold text-slate-500 block mb-1">ارزیابی‌های تکمیل‌شده</span>
+              <span className="text-2xl font-black text-teal-600 font-mono">{completedFormsCount}</span>
             </div>
-            <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600">
-              <CheckCircle2 className="w-6 h-6" />
+            <div className="w-11 h-11 rounded-2xl bg-teal-50 flex items-center justify-center text-teal-600">
+              <Award className="w-5 h-5" />
             </div>
           </div>
 
           <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs flex items-center justify-between">
             <div>
-              <span className="text-xs font-bold text-slate-500 block mb-1">در انتظار بررسی فیش کارت</span>
-              <span className="text-2xl font-black text-amber-600 font-mono">{pendingLeads}</span>
+              <span className="text-xs font-bold text-slate-500 block mb-1">خریداران موفق (اشتراک طلایی)</span>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-2xl font-black text-emerald-600 font-mono">{paidLeads}</span>
+                <span className="text-[11px] text-emerald-700 font-bold">({conversionRate}٪ تبدیل)</span>
+              </div>
             </div>
-            <div className="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-600">
-              <Clock className="w-6 h-6" />
+            <div className="w-11 h-11 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600">
+              <CheckCircle2 className="w-5 h-5" />
             </div>
           </div>
 
-          <div className="bg-gradient-to-tr from-emerald-600 to-teal-700 p-5 rounded-3xl text-white shadow-md flex items-center justify-between">
+          <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs flex items-center justify-between">
             <div>
-              <span className="text-xs font-bold text-emerald-100 block mb-1">مجموع فروش حاصله</span>
+              <span className="text-xs font-bold text-slate-500 block mb-1">میانگین امتیاز انطباق</span>
+              <div className="flex items-baseline gap-1">
+                <span className="text-2xl font-black text-amber-600 font-mono">{avgScore}</span>
+                <span className="text-xs text-amber-700 font-bold">از ۱۰۰</span>
+              </div>
+            </div>
+            <div className="w-11 h-11 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-600">
+              <TrendingUp className="w-5 h-5" />
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-tr from-emerald-600 to-teal-700 p-5 rounded-3xl text-white shadow-md flex items-center justify-between sm:col-span-2 lg:col-span-1">
+            <div>
+              <span className="text-xs font-bold text-emerald-100 block mb-1">مجموع درآمد ناخالص</span>
               <div className="flex items-baseline gap-1">
                 <span className="text-2xl font-black text-white font-mono">
                   {totalRevenueTomans.toLocaleString("fa-IR")}
@@ -306,9 +359,135 @@ export default function AdminLeadsView({ onBackToApp }: AdminLeadsViewProps) {
                 <span className="text-xs text-emerald-100 font-semibold">تومان</span>
               </div>
             </div>
-            <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center text-white backdrop-blur-sm">
-              <DollarSign className="w-6 h-6" />
+            <div className="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center text-white backdrop-blur-sm">
+              <DollarSign className="w-5 h-5" />
             </div>
+          </div>
+        </div>
+
+        {/* Big Data & Mining Intelligence Row */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Target Goal Breakdown (Study vs Work) */}
+          <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <PieChart className="w-5 h-5 text-emerald-600" />
+                <h4 className="font-extrabold text-sm text-slate-900">
+                  دیتاماینینگ اهداف مهاجرتی (تحصیلی vs کاری)
+                </h4>
+              </div>
+              <span className="text-xs text-slate-500 font-medium">
+                تحلیل زنده رفتار کاربران
+              </span>
+            </div>
+
+            {/* Visual Multi-Segment Bar */}
+            <div className="h-3.5 w-full bg-slate-100 rounded-full overflow-hidden flex shadow-inner">
+              <div
+                style={{ width: `${studyPct}%` }}
+                className="bg-emerald-500 h-full transition-all duration-500"
+                title={`تحصیلی: ${studyPct}٪`}
+              />
+              <div
+                style={{ width: `${workPct}%` }}
+                className="bg-teal-600 h-full transition-all duration-500"
+                title={`کاری: ${workPct}٪`}
+              />
+              <div
+                style={{ width: `${otherPct}%` }}
+                className="bg-cyan-400 h-full transition-all duration-500"
+                title={`ترکیبی / سایر: ${otherPct}٪`}
+              />
+            </div>
+
+            <div className="grid grid-cols-3 gap-2.5 pt-1 text-xs">
+              <div className="p-3 rounded-2xl bg-emerald-50/70 border border-emerald-100">
+                <div className="flex items-center gap-1.5 text-emerald-800 font-bold mb-1">
+                  <GraduationCap className="w-4 h-4" />
+                  <span>تحصیلی</span>
+                </div>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-lg font-black text-emerald-950 font-mono">{studyCount}</span>
+                  <span className="text-[11px] text-emerald-700">نفر ({studyPct}٪)</span>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-teal-50/70 border border-teal-100">
+                <div className="flex items-center gap-1.5 text-teal-800 font-bold mb-1">
+                  <Briefcase className="w-4 h-4" />
+                  <span>کاری</span>
+                </div>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-lg font-black text-teal-950 font-mono">{workCount}</span>
+                  <span className="text-[11px] text-teal-700">نفر ({workPct}٪)</span>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-cyan-50/70 border border-cyan-100">
+                <div className="flex items-center gap-1.5 text-cyan-800 font-bold mb-1">
+                  <Globe className="w-4 h-4" />
+                  <span>ترکیبی / سایر</span>
+                </div>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-lg font-black text-cyan-950 font-mono">{otherOrBothCount}</span>
+                  <span className="text-[11px] text-cyan-700">نفر ({otherPct}٪)</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Top Recommended Destinations Breakdown */}
+          <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <BarChart3 className="w-5 h-5 text-teal-600" />
+                <h4 className="font-extrabold text-sm text-slate-900">
+                  بیشترین مقاصد پیشنهادی الگوریتم به متقاضیان
+                </h4>
+              </div>
+              <span className="text-xs text-slate-500 font-medium">۵ کشور پرتقاضا</span>
+            </div>
+
+            {sortedDestinations.length === 0 ? (
+              <p className="text-xs text-slate-400 py-8 text-center">
+                هنوز پرونده ارزیابی ثبت نشده است.
+              </p>
+            ) : (
+              <div className="space-y-2.5 pt-1">
+                {sortedDestinations.map(([country, count], idx) => {
+                  const pct = Math.round((count / totalWithDest) * 100);
+                  return (
+                    <div key={country} className="space-y-1">
+                      <div className="flex items-center justify-between text-xs font-semibold">
+                        <span className="text-slate-800 flex items-center gap-2">
+                          <span className="w-4 h-4 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center text-[10px] font-mono font-bold">
+                            {idx + 1}
+                          </span>
+                          <span>{country}</span>
+                        </span>
+                        <span className="text-slate-500 font-mono text-[11px]">
+                          {count} پرونده ({pct}٪)
+                        </span>
+                      </div>
+                      <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                          style={{ width: `${pct}%` }}
+                          className={`h-full rounded-full transition-all duration-500 ${
+                            idx === 0
+                              ? "bg-emerald-500"
+                              : idx === 1
+                              ? "bg-teal-500"
+                              : idx === 2
+                              ? "bg-cyan-500"
+                              : "bg-slate-400"
+                          }`}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
 
@@ -419,13 +598,33 @@ export default function AdminLeadsView({ onBackToApp }: AdminLeadsViewProps) {
                         </div>
                       </td>
 
-                      {/* Destination */}
+                      {/* Destination & Goal */}
                       <td className="py-3.5 px-4">
                         {lead.latestDestination ? (
-                          <div>
-                            <span className="font-bold text-slate-800">{lead.latestDestination}</span>
-                            <span className="text-[10px] text-slate-500 block truncate max-w-[150px]">
-                              {lead.latestRoute} (امتیاز: {lead.latestScore}٪)
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold text-slate-800">{lead.latestDestination}</span>
+                              {lead.latestGoal === "study" && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                                  <GraduationCap className="w-3 h-3" />
+                                  <span>تحصیلی</span>
+                                </span>
+                              )}
+                              {lead.latestGoal === "work" && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-teal-100 text-teal-800 text-[10px] font-bold">
+                                  <Briefcase className="w-3 h-3" />
+                                  <span>کاری</span>
+                                </span>
+                              )}
+                              {lead.latestGoal && lead.latestGoal !== "study" && lead.latestGoal !== "work" && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-cyan-100 text-cyan-800 text-[10px] font-bold">
+                                  <Globe className="w-3 h-3" />
+                                  <span>ترکیبی</span>
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[10px] text-slate-500 block truncate max-w-[170px]">
+                              {lead.latestRoute} (انطباق: {lead.latestScore}٪)
                             </span>
                           </div>
                         ) : (

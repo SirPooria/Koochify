@@ -39,6 +39,7 @@ export interface AdminLeadItem {
   latestDestination: string | null;
   latestRoute: string | null;
   latestScore: number | null;
+  latestGoal?: string | null;
 }
 
 export interface SavedAssessmentSummary {
