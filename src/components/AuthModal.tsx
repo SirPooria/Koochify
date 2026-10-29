@@ -13,6 +13,12 @@ import {
 } from "lucide-react";
 import { sendOtp, verifyOtp, AuthUser } from "../services/authService";
 
+const toEnglishDigits = (str: string): string => {
+  return str
+    .replace(/[۰-۹]/g, (d) => "۰۱۲۳۴۵۶۷۸۹".indexOf(d).toString())
+    .replace(/[٠-٩]/g, (d) => "٠١٢٣٤٥٦٧٨٩".indexOf(d).toString());
+};
+
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -140,19 +146,24 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }: AuthModal
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">
                   شماره تلفن همراه
                 </label>
-                <div className="relative">
+                <div 
+                  dir="ltr" 
+                  className="flex items-center bg-slate-50 border border-slate-200 rounded-2xl overflow-hidden focus-within:ring-2 focus-within:ring-emerald-500 focus-within:border-transparent transition-all"
+                >
+                  <div className="flex items-center gap-1.5 px-3.5 py-3 bg-slate-100/90 border-r border-slate-200 text-slate-600 text-xs font-mono font-bold select-none shrink-0">
+                    <span className="text-base leading-none">🇮🇷</span>
+                    <span>+98</span>
+                  </div>
                   <input
                     type="tel"
+                    inputMode="numeric"
                     dir="ltr"
                     placeholder="09123456789"
                     value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
-                    className="w-full text-left font-mono tracking-wider px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all text-sm"
+                    onChange={(e) => setPhoneNumber(toEnglishDigits(e.target.value))}
+                    className="w-full text-left font-mono tracking-wider px-3.5 py-3 bg-transparent text-slate-900 placeholder:text-slate-400 focus:outline-none text-sm"
                     autoFocus
                   />
-                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-mono">
-                    IR (+98)
-                  </div>
                 </div>
                 <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
                   کد یک‌بارمصرف ۵ رقمی برای احراز هویت بدون نیاز به رمز عبور ارسال می‌شود.
@@ -208,12 +219,13 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }: AuthModal
                 </div>
                 <input
                   type="text"
+                  inputMode="numeric"
                   dir="ltr"
                   maxLength={6}
                   placeholder="12345"
                   value={otpCode}
-                  onChange={(e) => setOtpCode(e.target.value)}
-                  className="w-full text-center tracking-widest font-mono text-xl py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                  onChange={(e) => setOtpCode(toEnglishDigits(e.target.value))}
+                  className="w-full text-center tracking-widest font-mono text-xl py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
                   autoFocus
                 />
               </div>
@@ -228,9 +240,9 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }: AuthModal
                     placeholder="مثال: محمد محمدی"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
-                    className="w-full px-4 py-2.5 pr-10 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
+                    className="w-full pl-4 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
                   />
-                  <UserIcon className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
+                  <UserIcon className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 </div>
               </div>
 
