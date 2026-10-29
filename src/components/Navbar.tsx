@@ -3,7 +3,6 @@ import {
   Compass, 
   FileText, 
   Sparkles, 
-  Trash2,
   User as UserIcon,
   Phone
 } from "lucide-react";
@@ -16,7 +15,7 @@ interface NavbarProps {
   setActiveTab: (tab: NavTab) => void;
   hasResults: boolean;
   onOpenPrivacy?: () => void;
-  onResetData: () => void;
+  onResetData?: () => void;
   user: AuthUser | null;
   onOpenAuth: () => void;
   onOpenUserPanel: () => void;
@@ -135,7 +134,7 @@ export default function Navbar({
             {user ? (
               <button
                 onClick={onOpenUserPanel}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold transition-all shadow-xs"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold transition-all shadow-xs cursor-pointer"
                 title="مشاهده پنل کاربری و سوابق پرونده‌ها"
               >
                 <div className="w-6 h-6 rounded-lg bg-emerald-600 text-white flex items-center justify-center text-[11px] shadow-xs">
@@ -151,20 +150,12 @@ export default function Navbar({
             ) : (
               <button
                 onClick={onOpenAuth}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs hover:shadow-md transition-all active:scale-[0.98]"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs hover:shadow-md transition-all active:scale-[0.98] cursor-pointer"
               >
                 <Phone className="w-3.5 h-3.5" />
                 <span>ورود / ثبت‌نام</span>
               </button>
             )}
-
-            <button
-              onClick={onResetData}
-              className="p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
-              title="پاکسازی داده‌های فرم و شروع مجدد"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
           </div>
         </div>
 
