@@ -112,10 +112,10 @@ export default function PaymentScreen({
             {/* Price Box with Striking Visuals */}
             <div className="mt-6 p-4 sm:p-5 rounded-2xl bg-slate-950/40 border border-white/15 backdrop-blur-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <span className="text-xs text-emerald-200/80 block mb-1 font-medium">مبلغ سرمایه‌گذاری برای کل پرونده:</span>
+                <span className="text-xs text-emerald-200/80 block mb-1 font-medium">مبلغ هزینه ارزیابی این فرم:</span>
                 <div className="flex items-baseline gap-2">
                   <span className="text-3xl sm:text-5xl font-black text-amber-300 font-mono tracking-tight">
-                    ۴۹۹,۰۰۰
+                    {config ? config.amountTomans.toLocaleString("fa-IR") : "۴۹۹,۰۰۰"}
                   </span>
                   <span className="text-sm sm:text-base font-bold text-emerald-100">تومان</span>
                 </div>
@@ -128,11 +128,11 @@ export default function PaymentScreen({
                   </span>
                   <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-rose-500 to-amber-500 text-white text-[11px] font-black shadow-sm">
                     <Flame className="w-3 h-3 text-amber-200" />
-                    ۵۸٪ تخفیف رونمایی
+                    تخفیف ویژه
                   </span>
                 </div>
                 <span className="text-[11px] text-emerald-200/70">
-                  پرداخت یک‌باره — دسترسی دائمی بدون انقضا
+                  پرداخت یک‌باره بابت این ارزیابی — دسترسی در پنل
                 </span>
               </div>
             </div>
@@ -148,7 +148,7 @@ export default function PaymentScreen({
                 <span>مقایسه هوشمندانه هزینه و ارزش</span>
               </span>
               <h3 className="text-lg sm:text-xl font-black text-slate-900">
-                چرا پرداخت ۴۹۹ هزار تومان، ارزان‌ترین بیمه برای آینده شماست؟
+                چرا پرداخت هزینه ارزیابی، ارزان‌ترین بیمه برای آینده شماست؟
               </h3>
             </div>
 
@@ -171,7 +171,7 @@ export default function PaymentScreen({
               <div className="p-4 sm:p-5 rounded-2xl bg-emerald-50/80 border border-emerald-300 text-emerald-950 space-y-2.5 shadow-xs">
                 <div className="flex items-center gap-2 font-bold text-emerald-900 text-sm">
                   <span className="w-6 h-6 rounded-lg bg-emerald-600 text-white flex items-center justify-center text-xs shrink-0">✓</span>
-                  <span>ارزیابی هوشمند کوچیفای (۴۹۹ هزار تومان):</span>
+                  <span>ارزیابی هوشمند کوچیفای ({config ? config.amountTomans.toLocaleString("fa-IR") : "۴۹۹,۰۰۰"} تومان):</span>
                 </div>
                 <p className="text-emerald-900/90 leading-relaxed text-[11.5px]">
                   شرایط شما کاملاً <strong>بی‌طرفانه و بر اساس داده‌های دقیق ۲۰۲۶</strong> با بیش از ۵۰ برنامه فعال در آلمان، کانادا، ایتالیا، فرانسه، استرالیا و... تطبیق داده می‌شود؛ بدون هیچ‌گونه تعصب یا پورسانت پنهان.
@@ -266,7 +266,11 @@ export default function PaymentScreen({
               ) : (
                 <>
                   <ShieldCheck className="w-6 h-6 text-amber-300" />
-                  <span>ورود به درگاه پرداخت امن شاپرک — ۴۹۹,۰۰۰ تومان</span>
+                  <span>
+                    {config?.amountTomans === 0
+                      ? "فعال‌سازی فوری و رایگان ارزیابی"
+                      : `ورود به درگاه پرداخت امن شاپرک — ${config ? config.amountTomans.toLocaleString("fa-IR") : "۴۹۹,۰۰۰"} تومان`}
+                  </span>
                   <ArrowLeft className="w-5 h-5 mr-1" />
                 </>
               )}

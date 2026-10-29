@@ -1,6 +1,6 @@
 // server.ts
 import express from "express";
-import path from "path";
+import path2 from "path";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv2 from "dotenv";
 
@@ -700,6 +700,57 @@ async function sendOtpSms(phone, otpCode, customBodyId) {
   };
 }
 
+// server/settings.ts
+import fs from "node:fs";
+import path from "node:path";
+var SETTINGS_FILE_PATH = path.resolve(process.cwd(), "data", "settings.json");
+var DEFAULT_SETTINGS = {
+  assessmentPriceTomans: 499e3,
+  updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+};
+var cachedSettings = loadSettings();
+function loadSettings() {
+  try {
+    if (fs.existsSync(SETTINGS_FILE_PATH)) {
+      const raw = fs.readFileSync(SETTINGS_FILE_PATH, "utf-8");
+      const parsed = JSON.parse(raw);
+      if (typeof parsed.assessmentPriceTomans === "number") {
+        return {
+          assessmentPriceTomans: parsed.assessmentPriceTomans,
+          updatedAt: parsed.updatedAt || (/* @__PURE__ */ new Date()).toISOString()
+        };
+      }
+    }
+  } catch (err) {
+    console.warn("[SETTINGS] Could not read settings file, using defaults:", err);
+  }
+  return { ...DEFAULT_SETTINGS };
+}
+function saveSettings(settings) {
+  try {
+    const dir = path.dirname(SETTINGS_FILE_PATH);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(SETTINGS_FILE_PATH, JSON.stringify(settings, null, 2), "utf-8");
+  } catch (err) {
+    console.error("[SETTINGS] Could not save settings file:", err);
+  }
+}
+function getAssessmentPriceTomans() {
+  return cachedSettings.assessmentPriceTomans;
+}
+function setAssessmentPriceTomans(price) {
+  const safePrice = Math.max(0, Math.round(price));
+  cachedSettings = {
+    assessmentPriceTomans: safePrice,
+    updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+  };
+  saveSettings(cachedSettings);
+  console.log(`[SETTINGS] \u062A\u0639\u0631\u0641\u0647 \u0627\u0631\u0632\u06CC\u0627\u0628\u06CC \u0647\u0648\u0634\u0645\u0646\u062F \u0628\u0647\u200C\u0631\u0648\u0632\u0631\u0633\u0627\u0646\u06CC \u0634\u062F: ${safePrice.toLocaleString("fa-IR")} \u062A\u0648\u0645\u0627\u0646`);
+  return safePrice;
+}
+
 // server.ts
 import crypto2 from "node:crypto";
 dotenv2.config();
@@ -841,6 +892,18 @@ app.post("/api/user/assessments", authMiddleware, async (req, res) => {
     if (!profile || !results) {
       return res.status(400).json({ error: "\u0627\u0637\u0644\u0627\u0639\u0627\u062A \u0641\u0631\u0645 \u06CC\u0627 \u0646\u062A\u0627\u06CC\u062C \u0627\u0631\u0632\u06CC\u0627\u0628\u06CC \u0627\u0631\u0633\u0627\u0644 \u0646\u0634\u062F\u0647 \u0627\u0633\u062A." });
     }
+    if (!req.user.isPaid) {
+      return res.status(402).json({
+        error: "\u0628\u0631\u0627\u06CC \u062B\u0628\u062A \u0648 \u0622\u0632\u0627\u062F\u0633\u0627\u0632\u06CC \u0646\u062A\u0627\u06CC\u062C \u0627\u0631\u0632\u06CC\u0627\u0628\u06CC \u0647\u0648\u0634\u0645\u0646\u062F\u060C \u067E\u0631\u062F\u0627\u062E\u062A \u0647\u0632\u06CC\u0646\u0647 \u0627\u0631\u0632\u06CC\u0627\u0628\u06CC \u0627\u0644\u0632\u0627\u0645\u06CC \u0627\u0633\u062A.",
+        requiresPayment: true
+      });
+    }
+    const existingList = await getUserAssessments(req.user.id);
+    if (existingList && existingList.length > 0) {
+      for (const item of existingList) {
+        await deleteUserAssessment(item.id, req.user.id);
+      }
+    }
     const record = await saveAssessment(req.user.id, profile, results, title);
     return res.json({
       success: true,
@@ -854,7 +917,13 @@ app.post("/api/user/assessments", authMiddleware, async (req, res) => {
 });
 app.get("/api/user/assessments", authMiddleware, async (req, res) => {
   try {
-    const assessments = await getUserAssessments(req.user.id);
+    const rawAssessments = await getUserAssessments(req.user.id);
+    const isUserPaid = Boolean(req.user.isPaid);
+    const assessments = rawAssessments.map((a) => ({
+      ...a,
+      isPaid: isUserPaid,
+      primaryDestinations: isUserPaid ? a.primaryDestinations : []
+    }));
     return res.json({
       success: true,
       assessments
@@ -869,6 +938,17 @@ app.get("/api/user/assessments/:id", authMiddleware, async (req, res) => {
     const assessment = await getUserAssessmentById(req.params.id, req.user.id);
     if (!assessment) {
       return res.status(404).json({ error: "\u067E\u0631\u0648\u0646\u062F\u0647 \u0627\u0631\u0632\u06CC\u0627\u0628\u06CC \u0645\u0648\u0631\u062F \u0646\u0638\u0631 \u06CC\u0627\u0641\u062A \u0646\u0634\u062F." });
+    }
+    const isUserPaid = Boolean(req.user.isPaid);
+    if (!isUserPaid) {
+      return res.json({
+        success: true,
+        assessment: {
+          ...assessment,
+          resultsData: null,
+          isLocked: true
+        }
+      });
     }
     return res.json({
       success: true,
@@ -885,9 +965,11 @@ app.delete("/api/user/assessments/:id", authMiddleware, async (req, res) => {
     if (!deleted) {
       return res.status(404).json({ error: "\u067E\u0631\u0648\u0646\u062F\u0647 \u0645\u0648\u0631\u062F \u0646\u0638\u0631 \u06CC\u0627\u0641\u062A \u0646\u0634\u062F." });
     }
+    const updatedUser = await updateUserPayment(req.user.id, false, "none", null, null);
     return res.json({
       success: true,
-      message: "\u067E\u0631\u0648\u0646\u062F\u0647 \u0627\u0631\u0632\u06CC\u0627\u0628\u06CC \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u062D\u0630\u0641 \u0634\u062F."
+      message: "\u067E\u0631\u0648\u0646\u062F\u0647 \u0627\u0631\u0632\u06CC\u0627\u0628\u06CC \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u062D\u0630\u0641 \u0634\u062F. \u0628\u0631\u0627\u06CC \u0627\u0646\u062C\u0627\u0645 \u0627\u0631\u0632\u06CC\u0627\u0628\u06CC \u062C\u062F\u06CC\u062F\u060C \u0647\u0632\u06CC\u0646\u0647 \u0627\u0631\u0632\u06CC\u0627\u0628\u06CC \u0645\u062C\u062F\u062F\u0627\u064B \u0641\u0639\u0627\u0644 \u0645\u06CC\u200C\u0634\u0648\u062F.",
+      user: updatedUser
     });
   } catch (err) {
     console.error("Error deleting assessment:", err);
@@ -895,9 +977,10 @@ app.delete("/api/user/assessments/:id", authMiddleware, async (req, res) => {
   }
 });
 app.get("/api/payment/config", (req, res) => {
+  const priceTomans = getAssessmentPriceTomans();
   return res.json({
-    amountTomans: 499e3,
-    amountRials: 499e4,
+    amountTomans: priceTomans,
+    amountRials: priceTomans * 10,
     cardNumber: process.env.CARD_NUMBER || "6037-9979-1234-5678",
     cardHolder: process.env.CARD_HOLDER || "\u0628\u0647 \u0646\u0627\u0645 \u0645\u062F\u06CC\u0631\u06CC\u062A \u0633\u0627\u0645\u0627\u0646\u0647 \u06A9\u0648\u0686\u06CC\u0641\u0627\u06CC",
     hasOnlineGateway: Boolean(process.env.ZIBAL_MERCHANT_KEY || process.env.MERCHANT_ID || "6addde0e944acf62f5fd1438"),
@@ -936,6 +1019,7 @@ app.post("/api/payment/card-to-card", authMiddleware, async (req, res) => {
 });
 app.post("/api/payment/instant-unlock", authMiddleware, async (req, res) => {
   try {
+    const priceTomans = getAssessmentPriceTomans();
     const updatedUser = await updateUserPayment(
       req.user.id,
       true,
@@ -943,10 +1027,10 @@ app.post("/api/payment/instant-unlock", authMiddleware, async (req, res) => {
       `SIM-${Date.now()}`,
       "ONLINE"
     );
-    console.log(`[PAYMENT] \u067E\u0631\u062F\u0627\u062E\u062A \u0622\u0646\u0644\u0627\u06CC\u0646 \u06F4\u06F9\u06F9 \u0647\u0632\u0627\u0631 \u062A\u0648\u0645\u0627\u0646\u06CC \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u0641\u0639\u0627\u0644 \u0634\u062F \u0628\u0631\u0627\u06CC: ${req.user.phoneNumber}`);
+    console.log(`[PAYMENT] \u067E\u0631\u062F\u0627\u062E\u062A \u0622\u0646\u0644\u0627\u06CC\u0646 ${priceTomans.toLocaleString("fa-IR")} \u062A\u0648\u0645\u0627\u0646\u06CC \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u0641\u0639\u0627\u0644 \u0634\u062F \u0628\u0631\u0627\u06CC: ${req.user.phoneNumber}`);
     return res.json({
       success: true,
-      message: "\u067E\u0631\u062F\u0627\u062E\u062A \u06F4\u06F9\u06F9,\u06F0\u06F0\u06F0 \u062A\u0648\u0645\u0627\u0646\u06CC \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u0627\u0646\u062C\u0627\u0645 \u0634\u062F \u0648 \u062F\u0633\u062A\u0631\u0633\u06CC \u0628\u0647 \u0646\u062A\u0627\u06CC\u062C \u06A9\u0627\u0645\u0644 \u0648 \u0645\u0642\u0627\u0635\u062F \u0628\u0631\u062A\u0631 \u0628\u0627\u0632 \u0634\u062F.",
+      message: `\u067E\u0631\u062F\u0627\u062E\u062A \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u0627\u0646\u062C\u0627\u0645 \u0634\u062F \u0648 \u062F\u0633\u062A\u0631\u0633\u06CC \u0628\u0647 \u0646\u062A\u0627\u06CC\u062C \u0627\u0631\u0632\u06CC\u0627\u0628\u06CC \u0647\u0648\u0634\u0645\u0646\u062F \u0628\u0627\u0632 \u0634\u062F.`,
       user: updatedUser,
       isPaid: true
     });
@@ -957,12 +1041,29 @@ app.post("/api/payment/instant-unlock", authMiddleware, async (req, res) => {
 });
 var handleOnlinePaymentRequest = async (req, res) => {
   try {
+    const priceTomans = getAssessmentPriceTomans();
+    const amountRials = priceTomans * 10;
+    if (priceTomans === 0) {
+      const updatedUser = await updateUserPayment(
+        req.user.id,
+        true,
+        "paid",
+        `FREE-${Date.now()}`,
+        "FREE_PROMO"
+      );
+      return res.json({
+        success: true,
+        freeUnlock: true,
+        message: "\u062A\u0639\u0631\u0641\u0647 \u0627\u0631\u0632\u06CC\u0627\u0628\u06CC \u0635\u0641\u0631 \u062A\u0646\u0638\u06CC\u0645 \u0634\u062F\u0647 \u0627\u0633\u062A \u0648 \u0646\u062A\u0627\u06CC\u062C \u0627\u0631\u0632\u06CC\u0627\u0628\u06CC \u0641\u0648\u0631\u0627\u064B \u0641\u0639\u0627\u0644 \u06AF\u0631\u062F\u06CC\u062F.",
+        user: updatedUser,
+        isPaid: true
+      });
+    }
     const merchant = process.env.ZIBAL_MERCHANT_KEY || process.env.MERCHANT_ID || "6addde0e944acf62f5fd1438";
     const appUrl = process.env.APP_URL && !process.env.APP_URL.includes("localhost") ? process.env.APP_URL.replace(/\/+$/, "") : "https://koochify.ir";
     const callbackUrl = `${appUrl}/api/payment/zibal/callback?userId=${req.user.id}`;
-    const amountRials = 499e4;
     const orderId = `KCF-${Date.now()}`;
-    console.log(`[ZIBAL REQUEST] \u0634\u0631\u0648\u0639 \u062F\u0631\u062E\u0648\u0627\u0633\u062A \u067E\u0631\u062F\u0627\u062E\u062A \u0628\u0647 \u0632\u06CC\u0628\u0627\u0644 \u0628\u0631\u0627\u06CC ${req.user.phoneNumber} \u0628\u0627 \u0645\u0631\u0686\u0646\u062A ${merchant}`);
+    console.log(`[ZIBAL REQUEST] \u0634\u0631\u0648\u0639 \u062F\u0631\u062E\u0648\u0627\u0633\u062A \u067E\u0631\u062F\u0627\u062E\u062A \u0628\u0647 \u0632\u06CC\u0628\u0627\u0644 \u0628\u0631\u0627\u06CC ${req.user.phoneNumber} \u0628\u0627 \u0645\u0631\u0686\u0646\u062A ${merchant} (\u0645\u0628\u0644\u063A: ${priceTomans} \u062A\u0648\u0645\u0627\u0646)`);
     const zibalRes = await fetch("https://gateway.zibal.ir/v1/request", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -970,7 +1071,7 @@ var handleOnlinePaymentRequest = async (req, res) => {
         merchant,
         amount: amountRials,
         callbackUrl,
-        description: `\u0627\u0634\u062A\u0631\u0627\u06A9 \u062C\u0627\u0645\u0639 \u067E\u0631\u0648\u0646\u062F\u0647 \u0645\u0647\u0627\u062C\u0631\u062A \u06A9\u0648\u0686\u06CC\u0641\u0627\u06CC - ${req.user.phoneNumber}`,
+        description: `\u0647\u0632\u06CC\u0646\u0647 \u0627\u0631\u0632\u06CC\u0627\u0628\u06CC \u0647\u0648\u0634\u0645\u0646\u062F \u067E\u0631\u0648\u0646\u062F\u0647 \u0645\u0647\u0627\u062C\u0631\u062A \u06A9\u0648\u0686\u06CC\u0641\u0627\u06CC - ${req.user.phoneNumber}`,
         orderId,
         mobile: req.user.phoneNumber ? req.user.phoneNumber.replace(/^(\+98|0098)/, "0") : void 0
       })
@@ -978,13 +1079,13 @@ var handleOnlinePaymentRequest = async (req, res) => {
     const zibalData = await zibalRes.json();
     console.log("[ZIBAL RESPONSE]", zibalData);
     if (zibalData?.result === 100 && zibalData?.trackId) {
-      await recordPaymentTransaction({
-        userId: req.user.id,
-        amountTomans: 499e3,
+      await recordPaymentTransaction(
+        req.user.id,
+        priceTomans,
         amountRials,
-        trackId: String(zibalData.trackId),
-        rawResponse: zibalData
-      }).catch((e) => console.error("Could not record payment tx in DB:", e));
+        String(zibalData.trackId),
+        "pending"
+      ).catch((e) => console.error("Could not record payment tx in DB:", e));
       return res.json({
         success: true,
         paymentUrl: `https://gateway.zibal.ir/start/${zibalData.trackId}`,
@@ -1036,11 +1137,11 @@ var handleZibalCallback = async (req, res) => {
         const refNumber = verifyData.refNumber || trackId;
         const cardNumber = verifyData.cardNumber || "";
         await updateUserPayment(String(userId), true, "paid", String(refNumber), cardNumber);
-        await completePaymentTransaction(String(trackId), String(refNumber), cardNumber, "verified", verifyData).catch((e) => console.error("Could not complete payment tx:", e));
+        await completePaymentTransaction(String(trackId), String(refNumber), cardNumber, verifyData).catch((e) => console.error("Could not complete payment tx:", e));
         console.log(`[PAYMENT SUCCESS] \u067E\u0631\u062F\u0627\u062E\u062A \u06A9\u0627\u0631\u0628\u0631 ${userId} \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u062A\u0627\u06CC\u06CC\u062F \u0634\u062F. \u0634\u0645\u0627\u0631\u0647 \u062A\u0631\u0627\u06A9\u0646\u0634: ${refNumber}`);
         return res.redirect(`https://koochify.ir/?payment=success&ref=${refNumber}`);
       } else {
-        await completePaymentTransaction(String(trackId), "", "", "failed", verifyData).catch((e) => console.error("Could not update failed tx:", e));
+        await completePaymentTransaction(String(trackId), "", "", verifyData).catch((e) => console.error("Could not update failed tx:", e));
         console.warn(`[ZIBAL VERIFY FAILED] \u062A\u0631\u0627\u06A9\u0646\u0634 \u062A\u0627\u06CC\u06CC\u062F \u0646\u0634\u062F: ${verifyData?.result} - ${verifyData?.message}`);
         return res.redirect(`https://koochify.ir/?payment=failed&status=${verifyData?.result || status}`);
       }
@@ -1113,11 +1214,28 @@ app.post("/api/admin/unlock-user", adminAuthMiddleware, async (req, res) => {
     return res.json({
       success: true,
       user: updated,
-      message: isPaid ? "\u0627\u0634\u062A\u0631\u0627\u06A9 \u06A9\u0627\u0631\u0628\u0631 \u0628\u0647 \u0635\u0648\u0631\u062A \u062F\u0633\u062A\u06CC \u0641\u0639\u0627\u0644 \u0634\u062F." : "\u0627\u0634\u062A\u0631\u0627\u06A9 \u06A9\u0627\u0631\u0628\u0631 \u0644\u063A\u0648 \u0634\u062F."
+      message: isPaid ? "\u062F\u0633\u062A\u0631\u0633\u06CC \u0627\u0631\u0632\u06CC\u0627\u0628\u06CC \u06A9\u0627\u0631\u0628\u0631 \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u0641\u0639\u0627\u0644 \u0634\u062F." : "\u062F\u0633\u062A\u0631\u0633\u06CC \u06A9\u0627\u0631\u0628\u0631 \u0644\u063A\u0648 \u0634\u062F."
     });
   } catch (err) {
     console.error("Error unlocking user manually:", err);
     return res.status(500).json({ error: "\u062E\u0637\u0627 \u062F\u0631 \u062A\u063A\u06CC\u06CC\u0631 \u0648\u0636\u0639\u06CC\u062A \u062F\u0633\u062A\u0631\u0633\u06CC \u06A9\u0627\u0631\u0628\u0631." });
+  }
+});
+app.post("/api/admin/price", adminAuthMiddleware, (req, res) => {
+  try {
+    const { priceTomans } = req.body;
+    if (typeof priceTomans !== "number" || isNaN(priceTomans) || priceTomans < 0) {
+      return res.status(400).json({ error: "\u0644\u0637\u0641\u0627\u064B \u0645\u0628\u0644\u063A \u0645\u0639\u062A\u0628\u0631\u06CC \u0628\u0647 \u062A\u0648\u0645\u0627\u0646 \u0648\u0627\u0631\u062F \u06A9\u0646\u06CC\u062F." });
+    }
+    const updatedPrice = setAssessmentPriceTomans(priceTomans);
+    return res.json({
+      success: true,
+      priceTomans: updatedPrice,
+      message: `\u062A\u0639\u0631\u0641\u0647 \u0627\u0631\u0632\u06CC\u0627\u0628\u06CC \u0647\u0648\u0634\u0645\u0646\u062F \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u0628\u0647 ${updatedPrice.toLocaleString("fa-IR")} \u062A\u0648\u0645\u0627\u0646 \u062A\u063A\u06CC\u06CC\u0631 \u06CC\u0627\u0641\u062A.`
+    });
+  } catch (err) {
+    console.error("Error setting assessment price:", err);
+    return res.status(500).json({ error: "\u062E\u0637\u0627 \u062F\u0631 \u0628\u0647\u200C\u0631\u0648\u0632\u0631\u0633\u0627\u0646\u06CC \u0645\u0628\u0644\u063A \u0627\u0631\u0632\u06CC\u0627\u0628\u06CC." });
   }
 });
 app.post("/api/analyze-immigration", async (req, res) => {
@@ -1403,10 +1521,10 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), "dist");
+    const distPath = path2.join(process.cwd(), "dist");
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
+      res.sendFile(path2.join(distPath, "index.html"));
     });
   }
   app.listen(PORT, "0.0.0.0", () => {

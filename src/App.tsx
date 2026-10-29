@@ -20,7 +20,9 @@ import {
   AuthUser, 
   fetchCurrentUser, 
   getStoredUser, 
-  saveAssessmentToCloud 
+  saveAssessmentToCloud,
+  fetchUserAssessments,
+  deleteAssessment
 } from "./services/authService";
 import { 
   UserAssessmentProfile, 
@@ -79,7 +81,19 @@ export default function App() {
       if (freshUser) setUser(freshUser);
     });
 
+    const handleUserUpdated = (e: any) => {
+      if (e?.detail) {
+        setUser(e.detail);
+      } else {
+        fetchCurrentUser().then((fresh) => {
+          if (fresh) setUser(fresh);
+        });
+      }
+    };
+
     if (typeof window !== "undefined") {
+      window.addEventListener("koochify_user_updated", handleUserUpdated);
+
       const params = new URLSearchParams(window.location.search);
       if (params.get("payment") === "success") {
         fetchCurrentUser().then((fresh) => {
@@ -98,7 +112,10 @@ export default function App() {
       };
 
       window.addEventListener("hashchange", handleHashChange);
-      return () => window.removeEventListener("hashchange", handleHashChange);
+      return () => {
+        window.removeEventListener("hashchange", handleHashChange);
+        window.removeEventListener("koochify_user_updated", handleUserUpdated);
+      };
     }
   }, []);
 
@@ -109,7 +126,7 @@ export default function App() {
   const [isPrivacyModalOpen, setIsPrivacyModalOpen] = useState(false);
   const [isCalculating, setIsCalculating] = useState(false);
 
-  // Handle Assessment Completion -> Direct DB Save -> 499k Toman Payment Gate -> Results
+  // Handle Assessment Completion -> Verify Fresh Payment Status -> Gate / Results
   const handleAssessmentComplete = async (profile: UserAssessmentProfile) => {
     setIsCalculating(true);
     setUserProfile(profile);
@@ -119,44 +136,94 @@ export default function App() {
     setResults(summary);
     setIsSavedToCloud(false);
 
-    // Persist directly to DB
-    if (user) {
+    // Fetch fresh user state from server to detect admin manual unlocks or real-time payment
+    let freshUser = user;
+    try {
+      const fresh = await fetchCurrentUser();
+      if (fresh) {
+        setUser(fresh);
+        freshUser = fresh;
+      }
+    } catch (err) {
+      console.warn("Could not fetch fresh user status:", err);
+    }
+
+    setIsCalculating(false);
+
+    // Strict Pay-per-Assessment Policy:
+    // If user has not paid for this evaluation, gate to payment screen and DO NOT save to DB
+    if (!freshUser?.isPaid) {
+      setActiveTab("payment");
+    } else {
+      // User is paid: save assessment to DB and show results
       try {
         await saveAssessmentToCloud(profile, summary);
         setIsSavedToCloud(true);
       } catch (err) {
         console.warn("Direct save to database failed:", err);
       }
-    }
-
-    setIsCalculating(false);
-
-    // Gated Payment Flow: If user has not paid, go to 499,000 Toman payment screen
-    if (!user?.isPaid) {
-      setActiveTab("payment");
-    } else {
       setActiveTab("results");
     }
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   // Handle Payment Success
-  const handlePaymentSuccess = (paidUser: AuthUser) => {
+  const handlePaymentSuccess = async (paidUser: AuthUser) => {
     setUser(paidUser);
     setIsPaymentModalOpen(false);
+
+    // If results exist in memory, save now that user is paid
+    if (results) {
+      try {
+        await saveAssessmentToCloud(userProfile, results);
+        setIsSavedToCloud(true);
+      } catch (err) {
+        console.warn("Could not save to cloud after payment:", err);
+      }
+    }
+
     setActiveTab("results");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // Start assessment handler with login requirement
-  const handleStartAssessment = () => {
+  // Start assessment handler with login requirement and 1-form check
+  const handleStartAssessment = async () => {
     if (!user) {
       setPendingStartAssessment(true);
       setIsAuthModalOpen(true);
-    } else {
-      setActiveTab("assessment");
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
     }
+
+    // Check if user already has an active assessment dossier
+    try {
+      const existingList = await fetchUserAssessments();
+      if (existingList && existingList.length > 0) {
+        const confirmNew = window.confirm(
+          "شما در حال حاضر یک پرونده ارزیابی در پنل کاربری خود دارید.\n" +
+          "طبق قوانین سامانه، هر پرداخت برای یک ارزیابی است. برای انجام ارزیابی جدید، باید پرونده قبلی حذف شده و هزینه ارزیابی مجدداً پرداخت گردد.\n\n" +
+          "آیا مایلید پرونده قبلی حذف شود و فرم ارزیابی جدید را آغاز فرمایید؟"
+        );
+        if (confirmNew) {
+          for (const item of existingList) {
+            await deleteAssessment(item.id);
+          }
+          const fresh = await fetchCurrentUser();
+          if (fresh) setUser(fresh);
+          setUserProfile(DEFAULT_PROFILE);
+          setResults(null);
+          setActiveTab("assessment");
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        } else {
+          setIsUserPanelOpen(true);
+        }
+        return;
+      }
+    } catch (e) {
+      console.warn("Could not check existing assessments:", e);
+    }
+
+    setActiveTab("assessment");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   // Handle Save Current Assessment to Cloud
@@ -297,6 +364,9 @@ export default function App() {
             if (typeof window !== "undefined" && window.location.hash === "#admin") {
               window.location.hash = "";
             }
+            fetchCurrentUser().then((fresh) => {
+              if (fresh) setUser(fresh);
+            });
           }}
         />
       </div>
@@ -523,6 +593,7 @@ export default function App() {
           currentProfile={userProfile}
           currentResults={results}
           onAssessmentSaved={() => setIsSavedToCloud(true)}
+          onOpenPayment={() => setIsPaymentModalOpen(true)}
         />
       )}
 

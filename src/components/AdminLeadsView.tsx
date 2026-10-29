@@ -25,13 +25,16 @@ import {
   Briefcase,
   Globe,
   Percent,
-  Award
+  Award,
+  Save
 } from "lucide-react";
 import {
   AdminLeadItem,
   adminLogin,
   fetchAdminLeads,
-  adminUnlockUser
+  adminUnlockUser,
+  fetchPaymentConfig,
+  updateAdminPrice
 } from "../services/authService";
 
 interface AdminLeadsViewProps {
@@ -50,6 +53,23 @@ export default function AdminLeadsView({ onBackToApp }: AdminLeadsViewProps) {
   const [filterStatus, setFilterStatus] = useState<"all" | "paid" | "pending" | "free">("all");
   const [copiedPhone, setCopiedPhone] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+
+  // Dynamic Price State
+  const [currentPriceTomans, setCurrentPriceTomans] = useState<number>(499000);
+  const [priceInput, setPriceInput] = useState<string>("499000");
+  const [isSavingPrice, setIsSavingPrice] = useState(false);
+  const [priceSuccessMsg, setPriceSuccessMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchPaymentConfig()
+      .then((cfg) => {
+        if (cfg?.amountTomans !== undefined) {
+          setCurrentPriceTomans(cfg.amountTomans);
+          setPriceInput(String(cfg.amountTomans));
+        }
+      })
+      .catch((e) => console.warn("Could not load price config:", e));
+  }, []);
 
   useEffect(() => {
     if (adminToken) {
@@ -111,6 +131,27 @@ export default function AdminLeadsView({ onBackToApp }: AdminLeadsViewProps) {
     }
   };
 
+  const handleSavePrice = async (priceToSave?: number) => {
+    if (!adminToken) return;
+    const target = priceToSave !== undefined ? priceToSave : Number(priceInput);
+    if (isNaN(target) || target < 0) {
+      alert("لطفاً یک مبلغ معتبر وارد نمایید.");
+      return;
+    }
+    setIsSavingPrice(true);
+    try {
+      const res = await updateAdminPrice(adminToken, target);
+      setCurrentPriceTomans(res.priceTomans);
+      setPriceInput(String(res.priceTomans));
+      setPriceSuccessMsg(res.message);
+      setTimeout(() => setPriceSuccessMsg(null), 3500);
+    } catch (err: any) {
+      alert(err.message || "خطا در ذخیره مبلغ جدید");
+    } finally {
+      setIsSavingPrice(false);
+    }
+  };
+
   const handleCopyPhone = (phone: string) => {
     navigator.clipboard.writeText(phone);
     setCopiedPhone(phone);
@@ -135,7 +176,7 @@ export default function AdminLeadsView({ onBackToApp }: AdminLeadsViewProps) {
   const totalLeads = leads.length;
   const paidLeads = leads.filter((l) => l.isPaid).length;
   const pendingLeads = leads.filter((l) => l.paymentStatus === "pending_verification").length;
-  const totalRevenueTomans = paidLeads * 499000;
+  const totalRevenueTomans = paidLeads * currentPriceTomans;
   const completedFormsCount = leads.filter((l) => (l.assessmentsCount || 0) > 0 || l.latestDestination).length;
   const conversionRate = totalLeads > 0 ? ((paidLeads / totalLeads) * 100).toFixed(1) : "0";
 
@@ -300,6 +341,85 @@ export default function AdminLeadsView({ onBackToApp }: AdminLeadsViewProps) {
             <span>{actionSuccess}</span>
           </div>
         )}
+
+        {/* Dynamic Assessment Price Setting Card */}
+        <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-emerald-950 text-white p-5 sm:p-6 rounded-3xl border border-slate-700/80 shadow-lg">
+          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2 mb-1.5">
+                <DollarSign className="w-5 h-5 text-amber-400" />
+                <h3 className="font-extrabold text-sm sm:text-base text-white">
+                  تنظیم تعرفه هر بار فرم ارزیابی هوشمند (مبلغ کالا)
+                </h3>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[11px] font-bold border border-emerald-500/30">
+                  فعال در درگاه و سایت: {currentPriceTomans.toLocaleString("fa-IR")} تومان
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 leading-relaxed max-w-2xl">
+                هر کاربر بابت هر بار پر کردن فرم و دیدن نتایج باید این مبلغ را پرداخت کند. برای تست می‌توانید مبلغ را روی ۱,۰۰۰ تومان یا ۰ تومان (رایگان) تنظیم کنید.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+              <div className="relative flex items-center">
+                <input
+                  type="number"
+                  min="0"
+                  step="1000"
+                  value={priceInput}
+                  onChange={(e) => setPriceInput(e.target.value)}
+                  className="w-36 sm:w-44 px-3 py-2 bg-slate-800/90 text-amber-300 font-mono font-bold rounded-xl border border-slate-600 focus:outline-hidden focus:border-amber-400 text-sm text-left pl-14"
+                  placeholder="مبلغ به تومان"
+                />
+                <span className="absolute left-2.5 text-xs text-slate-400 font-sans pointer-events-none">تومان</span>
+              </div>
+
+              <button
+                onClick={() => handleSavePrice()}
+                disabled={isSavingPrice}
+                className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {isSavingPrice ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                <span>ذخیره مبلغ جدید</span>
+              </button>
+
+              {/* Quick Presets */}
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => { setPriceInput("1000"); handleSavePrice(1000); }}
+                  className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] rounded-lg border border-slate-700 font-mono transition-colors cursor-pointer"
+                  title="مبلغ ۱,۰۰۰ تومان جهت تست سریع کارت به کارت و درگاه"
+                >
+                  ۱,۰۰۰ ت (تست)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setPriceInput("0"); handleSavePrice(0); }}
+                  className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 text-[11px] rounded-lg border border-slate-700 font-mono transition-colors cursor-pointer"
+                  title="رایگان جهت تست فوری بدون درگاه"
+                >
+                  رایگان (۰)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setPriceInput("499000"); handleSavePrice(499000); }}
+                  className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] rounded-lg border border-slate-700 font-mono transition-colors cursor-pointer"
+                  title="تعرفه اصلی ۴۹۹,۰۰۰ تومان"
+                >
+                  ۴۹۹,۰۰۰ ت
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {priceSuccessMsg && (
+            <div className="mt-3 pt-3 border-t border-slate-700/60 flex items-center gap-2 text-xs text-emerald-300 font-bold animate-fade-in">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              <span>{priceSuccessMsg}</span>
+            </div>
+          )}
+        </div>
 
         {/* Sales & Conversion KPI Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
@@ -472,15 +592,14 @@ export default function AdminLeadsView({ onBackToApp }: AdminLeadsViewProps) {
                       <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
                         <div
                           style={{ width: `${pct}%` }}
-                          className={`h-full rounded-full transition-all duration-500 ${
-                            idx === 0
-                              ? "bg-emerald-500"
-                              : idx === 1
+                          className={`h-full rounded-full transition-all duration-500 ${idx === 0
+                            ? "bg-emerald-500"
+                            : idx === 1
                               ? "bg-teal-500"
                               : idx === 2
-                              ? "bg-cyan-500"
-                              : "bg-slate-400"
-                          }`}
+                                ? "bg-cyan-500"
+                                : "bg-slate-400"
+                            }`}
                         />
                       </div>
                     </div>
@@ -507,33 +626,29 @@ export default function AdminLeadsView({ onBackToApp }: AdminLeadsViewProps) {
           <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto">
             <button
               onClick={() => setFilterStatus("all")}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors whitespace-nowrap ${
-                filterStatus === "all" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-              }`}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors whitespace-nowrap ${filterStatus === "all" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
             >
               همه ({totalLeads})
             </button>
             <button
               onClick={() => setFilterStatus("paid")}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors whitespace-nowrap ${
-                filterStatus === "paid" ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-              }`}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors whitespace-nowrap ${filterStatus === "paid" ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
             >
               پرداخت‌شده ({paidLeads})
             </button>
             <button
               onClick={() => setFilterStatus("pending")}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors whitespace-nowrap ${
-                filterStatus === "pending" ? "bg-amber-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-              }`}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors whitespace-nowrap ${filterStatus === "pending" ? "bg-amber-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
             >
               در انتظار کارت ({pendingLeads})
             </button>
             <button
               onClick={() => setFilterStatus("free")}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors whitespace-nowrap ${
-                filterStatus === "free" ? "bg-slate-700 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-              }`}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors whitespace-nowrap ${filterStatus === "free" ? "bg-slate-700 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
             >
               رایگان / قفل
             </button>
@@ -671,13 +786,12 @@ export default function AdminLeadsView({ onBackToApp }: AdminLeadsViewProps) {
                       <td className="py-3.5 px-4 text-center">
                         <button
                           onClick={() => handleToggleUnlock(lead.id, lead.isPaid)}
-                          className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-colors shadow-xs ${
-                            lead.isPaid
-                              ? "bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200"
-                              : "bg-emerald-600 text-white hover:bg-emerald-700"
-                          }`}
+                          className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-colors shadow-xs cursor-pointer ${lead.isPaid
+                            ? "bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200"
+                            : "bg-emerald-600 text-white hover:bg-emerald-700"
+                            }`}
                         >
-                          {lead.isPaid ? "لغو اشتراک" : "تأیید دستی و باز کردن"}
+                          {lead.isPaid ? "لغو دسترسی" : "تأیید پرداخت (مجاز برای ۱ ارزیابی)"}
                         </button>
                       </td>
                     </tr>

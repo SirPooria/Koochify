@@ -100,6 +100,8 @@ export function saveAuthSession(token: string, user: AuthUser) {
   try {
     sessionStorage.setItem(TOKEN_KEY, token);
     sessionStorage.setItem(USER_KEY, JSON.stringify(user));
+    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
   } catch (e) {
     console.error("Failed to save auth session to storage:", e);
   }
@@ -221,6 +223,7 @@ export async function fetchCurrentUser(): Promise<AuthUser | null> {
 
     const data = await res.json().catch(() => null);
     if (data?.user) {
+      sessionStorage.setItem(USER_KEY, JSON.stringify(data.user));
       localStorage.setItem(USER_KEY, JSON.stringify(data.user));
       return data.user;
     }
@@ -361,9 +364,17 @@ export async function deleteAssessment(id: string): Promise<boolean> {
     },
   });
 
-  const data = await res.json();
+  const data = await res.json().catch(() => null);
   if (!res.ok) {
-    throw new Error(data.error || "خطا در حذف پرونده");
+    throw new Error(data?.error || "خطا در حذف پرونده");
+  }
+
+  // Update cached user since deletion resets paid status for fresh assessment
+  if (data?.user) {
+    saveAuthSession(token, data.user);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("koochify_user_updated", { detail: data.user }));
+    }
   }
 
   return true;
@@ -506,7 +517,7 @@ export async function fetchAdminLeads(adminToken: string): Promise<AdminLeadItem
 }
 
 /**
- * Admin manual toggle of user subscription
+ * Admin manual toggle of user subscription/payment
  */
 export async function adminUnlockUser(
   userId: string,
@@ -525,6 +536,42 @@ export async function adminUnlockUser(
   const data = await res.json();
   if (!res.ok) {
     throw new Error(data.error || "خطا در تغییر وضعیت دسترسی کاربر");
+  }
+
+  // If the unlocked user is currently active in this browser, immediately update local session!
+  const currentUser = getStoredUser();
+  if (currentUser && (currentUser.id === userId || currentUser.phoneNumber === data.user?.phoneNumber)) {
+    const currentToken = getStoredToken();
+    if (currentToken && data.user) {
+      saveAuthSession(currentToken, data.user);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("koochify_user_updated", { detail: data.user }));
+      }
+    }
+  }
+
+  return data;
+}
+
+/**
+ * Admin update assessment price
+ */
+export async function updateAdminPrice(
+  adminToken: string,
+  priceTomans: number
+): Promise<{ success: boolean; priceTomans: number; message: string }> {
+  const res = await fetch("/api/admin/price", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${adminToken}`,
+    },
+    body: JSON.stringify({ priceTomans }),
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || "خطا در به‌روزرسانی مبلغ ارزیابی");
   }
 
   return data;

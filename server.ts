@@ -22,6 +22,7 @@ import {
   completePaymentTransaction,
 } from "./server/db.ts";
 import { sendOtpSms } from "./server/smsService.ts";
+import { getAssessmentPriceTomans, setAssessmentPriceTomans } from "./server/settings.ts";
 import crypto from "node:crypto";
 
 dotenv.config();
@@ -203,6 +204,24 @@ app.post("/api/user/assessments", authMiddleware, async (req: any, res) => {
     if (!profile || !results) {
       return res.status(400).json({ error: "اطلاعات فرم یا نتایج ارزیابی ارسال نشده است." });
     }
+
+    // Verify payment status: Each assessment requires payment/unlock
+    if (!req.user.isPaid) {
+      return res.status(402).json({
+        error: "برای ثبت و آزادسازی نتایج ارزیابی هوشمند، پرداخت هزینه ارزیابی الزامی است.",
+        requiresPayment: true,
+      });
+    }
+
+    // 1-Form Policy: A user can only maintain 1 active assessment dossier per payment.
+    // If an existing assessment exists, replace it cleanly.
+    const existingList = await getUserAssessments(req.user.id);
+    if (existingList && existingList.length > 0) {
+      for (const item of existingList) {
+        await deleteUserAssessment(item.id, req.user.id);
+      }
+    }
+
     const record = await saveAssessment(req.user.id, profile, results, title);
     return res.json({
       success: true,
@@ -218,7 +237,16 @@ app.post("/api/user/assessments", authMiddleware, async (req: any, res) => {
 // List All User Assessments
 app.get("/api/user/assessments", authMiddleware, async (req: any, res) => {
   try {
-    const assessments = await getUserAssessments(req.user.id);
+    const rawAssessments = await getUserAssessments(req.user.id);
+    const isUserPaid = Boolean(req.user.isPaid);
+
+    // Gated results: If user hasn't paid, mask primary destinations so zero sensitive data is leaked
+    const assessments = rawAssessments.map((a: any) => ({
+      ...a,
+      isPaid: isUserPaid,
+      primaryDestinations: isUserPaid ? a.primaryDestinations : [],
+    }));
+
     return res.json({
       success: true,
       assessments,
@@ -236,6 +264,20 @@ app.get("/api/user/assessments/:id", authMiddleware, async (req: any, res) => {
     if (!assessment) {
       return res.status(404).json({ error: "پرونده ارزیابی مورد نظر یافت نشد." });
     }
+
+    const isUserPaid = Boolean(req.user.isPaid);
+    if (!isUserPaid) {
+      // Return masked assessment without results data
+      return res.json({
+        success: true,
+        assessment: {
+          ...assessment,
+          resultsData: null,
+          isLocked: true,
+        },
+      });
+    }
+
     return res.json({
       success: true,
       assessment,
@@ -253,9 +295,16 @@ app.delete("/api/user/assessments/:id", authMiddleware, async (req: any, res) =>
     if (!deleted) {
       return res.status(404).json({ error: "پرونده مورد نظر یافت نشد." });
     }
+
+    // Per user specification:
+    // "فقط هم یک بار میتونه فرم پر کنه و نتیجه بگیره، مگر اینکه فرم قبلی رو پاک کنه و برای فرم جدید مبلغ جدید پرداخت کنه ! بابت هر بار فرم ارزیابی باید مبلغ پرداخت بشه"
+    // Reset payment status for this user so any new assessment requires fresh payment.
+    const updatedUser = await updateUserPayment(req.user.id, false, "none", null, null);
+
     return res.json({
       success: true,
-      message: "پرونده ارزیابی با موفقیت حذف شد.",
+      message: "پرونده ارزیابی با موفقیت حذف شد. برای انجام ارزیابی جدید، هزینه ارزیابی مجدداً فعال می‌شود.",
+      user: updatedUser,
     });
   } catch (err: any) {
     console.error("Error deleting assessment:", err);
@@ -266,9 +315,10 @@ app.delete("/api/user/assessments/:id", authMiddleware, async (req: any, res) =>
 // --- Payment Routes ---
 // Get Payment Configuration
 app.get("/api/payment/config", (req, res) => {
+  const priceTomans = getAssessmentPriceTomans();
   return res.json({
-    amountTomans: 499000,
-    amountRials: 4990000,
+    amountTomans: priceTomans,
+    amountRials: priceTomans * 10,
     cardNumber: process.env.CARD_NUMBER || "6037-9979-1234-5678",
     cardHolder: process.env.CARD_HOLDER || "به نام مدیریت سامانه کوچیفای",
     hasOnlineGateway: Boolean(process.env.ZIBAL_MERCHANT_KEY || process.env.MERCHANT_ID || "6addde0e944acf62f5fd1438"),
@@ -317,6 +367,7 @@ app.post("/api/payment/card-to-card", authMiddleware, async (req: any, res) => {
 // Instant Online Payment Unlock (Sandbox / Simulator)
 app.post("/api/payment/instant-unlock", authMiddleware, async (req: any, res) => {
   try {
+    const priceTomans = getAssessmentPriceTomans();
     const updatedUser = await updateUserPayment(
       req.user.id,
       true,
@@ -324,10 +375,10 @@ app.post("/api/payment/instant-unlock", authMiddleware, async (req: any, res) =>
       `SIM-${Date.now()}`,
       "ONLINE"
     );
-    console.log(`[PAYMENT] پرداخت آنلاین ۴۹۹ هزار تومانی با موفقیت فعال شد برای: ${req.user.phoneNumber}`);
+    console.log(`[PAYMENT] پرداخت آنلاین ${priceTomans.toLocaleString("fa-IR")} تومانی با موفقیت فعال شد برای: ${req.user.phoneNumber}`);
     return res.json({
       success: true,
-      message: "پرداخت ۴۹۹,۰۰۰ تومانی با موفقیت انجام شد و دسترسی به نتایج کامل و مقاصد برتر باز شد.",
+      message: `پرداخت با موفقیت انجام شد و دسترسی به نتایج ارزیابی هوشمند باز شد.`,
       user: updatedUser,
       isPaid: true,
     });
@@ -340,6 +391,27 @@ app.post("/api/payment/instant-unlock", authMiddleware, async (req: any, res) =>
 // Online Payment Request (Zibal IPG Gateway)
 const handleOnlinePaymentRequest = async (req: any, res: any) => {
   try {
+    const priceTomans = getAssessmentPriceTomans();
+    const amountRials = priceTomans * 10;
+
+    // Free test mode bypass (when admin sets price to 0)
+    if (priceTomans === 0) {
+      const updatedUser = await updateUserPayment(
+        req.user.id,
+        true,
+        "paid",
+        `FREE-${Date.now()}`,
+        "FREE_PROMO"
+      );
+      return res.json({
+        success: true,
+        freeUnlock: true,
+        message: "تعرفه ارزیابی صفر تنظیم شده است و نتایج ارزیابی فوراً فعال گردید.",
+        user: updatedUser,
+        isPaid: true,
+      });
+    }
+
     const merchant =
       process.env.ZIBAL_MERCHANT_KEY ||
       process.env.MERCHANT_ID ||
@@ -350,10 +422,9 @@ const handleOnlinePaymentRequest = async (req: any, res: any) => {
       ? process.env.APP_URL.replace(/\/+$/, "")
       : "https://koochify.ir";
     const callbackUrl = `${appUrl}/api/payment/zibal/callback?userId=${req.user.id}`;
-    const amountRials = 4990000; // 499,000 Tomans = 4,990,000 Rials
     const orderId = `KCF-${Date.now()}`;
 
-    console.log(`[ZIBAL REQUEST] شروع درخواست پرداخت به زیبال برای ${req.user.phoneNumber} با مرچنت ${merchant}`);
+    console.log(`[ZIBAL REQUEST] شروع درخواست پرداخت به زیبال برای ${req.user.phoneNumber} با مرچنت ${merchant} (مبلغ: ${priceTomans} تومان)`);
 
     const zibalRes = await fetch("https://gateway.zibal.ir/v1/request", {
       method: "POST",
@@ -362,7 +433,7 @@ const handleOnlinePaymentRequest = async (req: any, res: any) => {
         merchant: merchant,
         amount: amountRials,
         callbackUrl: callbackUrl,
-        description: `اشتراک جامع پرونده مهاجرت کوچیفای - ${req.user.phoneNumber}`,
+        description: `هزینه ارزیابی هوشمند پرونده مهاجرت کوچیفای - ${req.user.phoneNumber}`,
         orderId: orderId,
         mobile: req.user.phoneNumber ? req.user.phoneNumber.replace(/^(\+98|0098)/, "0") : undefined,
       }),
@@ -372,13 +443,13 @@ const handleOnlinePaymentRequest = async (req: any, res: any) => {
     console.log("[ZIBAL RESPONSE]", zibalData);
 
     if (zibalData?.result === 100 && zibalData?.trackId) {
-      await recordPaymentTransaction({
-        userId: req.user.id,
-        amountTomans: 499000,
-        amountRials: amountRials,
-        trackId: String(zibalData.trackId),
-        rawResponse: zibalData,
-      }).catch((e) => console.error("Could not record payment tx in DB:", e));
+      await recordPaymentTransaction(
+        req.user.id,
+        priceTomans,
+        amountRials,
+        String(zibalData.trackId),
+        "pending"
+      ).catch((e) => console.error("Could not record payment tx in DB:", e));
 
       return res.json({
         success: true,
@@ -446,11 +517,11 @@ const handleZibalCallback = async (req: any, res: any) => {
         const refNumber = verifyData.refNumber || trackId;
         const cardNumber = verifyData.cardNumber || "";
         await updateUserPayment(String(userId), true, "paid", String(refNumber), cardNumber);
-        await completePaymentTransaction(String(trackId), String(refNumber), cardNumber, "verified", verifyData).catch((e) => console.error("Could not complete payment tx:", e));
+        await completePaymentTransaction(String(trackId), String(refNumber), cardNumber, verifyData).catch((e) => console.error("Could not complete payment tx:", e));
         console.log(`[PAYMENT SUCCESS] پرداخت کاربر ${userId} با موفقیت تایید شد. شماره تراکنش: ${refNumber}`);
         return res.redirect(`https://koochify.ir/?payment=success&ref=${refNumber}`);
       } else {
-        await completePaymentTransaction(String(trackId), "", "", "failed", verifyData).catch((e) => console.error("Could not update failed tx:", e));
+        await completePaymentTransaction(String(trackId), "", "", verifyData).catch((e) => console.error("Could not update failed tx:", e));
         console.warn(`[ZIBAL VERIFY FAILED] تراکنش تایید نشد: ${verifyData?.result} - ${verifyData?.message}`);
         return res.redirect(`https://koochify.ir/?payment=failed&status=${verifyData?.result || status}`);
       }
@@ -536,11 +607,30 @@ app.post("/api/admin/unlock-user", adminAuthMiddleware, async (req, res) => {
     return res.json({
       success: true,
       user: updated,
-      message: isPaid ? "اشتراک کاربر به صورت دستی فعال شد." : "اشتراک کاربر لغو شد.",
+      message: isPaid ? "دسترسی ارزیابی کاربر با موفقیت فعال شد." : "دسترسی کاربر لغو شد.",
     });
   } catch (err: any) {
     console.error("Error unlocking user manually:", err);
     return res.status(500).json({ error: "خطا در تغییر وضعیت دسترسی کاربر." });
+  }
+});
+
+// Admin Update Assessment Price
+app.post("/api/admin/price", adminAuthMiddleware, (req, res) => {
+  try {
+    const { priceTomans } = req.body;
+    if (typeof priceTomans !== "number" || isNaN(priceTomans) || priceTomans < 0) {
+      return res.status(400).json({ error: "لطفاً مبلغ معتبری به تومان وارد کنید." });
+    }
+    const updatedPrice = setAssessmentPriceTomans(priceTomans);
+    return res.json({
+      success: true,
+      priceTomans: updatedPrice,
+      message: `تعرفه ارزیابی هوشمند با موفقیت به ${updatedPrice.toLocaleString("fa-IR")} تومان تغییر یافت.`,
+    });
+  } catch (err: any) {
+    console.error("Error setting assessment price:", err);
+    return res.status(500).json({ error: "خطا در به‌روزرسانی مبلغ ارزیابی." });
   }
 });
 

@@ -18,7 +18,8 @@ import {
   PlusCircle,
   FileText,
   AlertCircle,
-  Loader2
+  Loader2,
+  Lock
 } from "lucide-react";
 import {
   AuthUser,
@@ -41,6 +42,7 @@ interface UserPanelModalProps {
   currentProfile?: UserAssessmentProfile;
   currentResults?: RecommendationSummary | null;
   onAssessmentSaved?: () => void;
+  onOpenPayment?: () => void;
 }
 
 export default function UserPanelModal({
@@ -51,7 +53,8 @@ export default function UserPanelModal({
   onLoadAssessment,
   currentProfile,
   currentResults,
-  onAssessmentSaved
+  onAssessmentSaved,
+  onOpenPayment
 }: UserPanelModalProps) {
   const [assessments, setAssessments] = useState<SavedAssessmentSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -113,14 +116,14 @@ export default function UserPanelModal({
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm("آیا از حذف این پرونده ارزیابی از حساب کاربری اطمینان دارید؟")) {
+    if (!window.confirm("آیا از حذف این پرونده ارزیابی اطمینان دارید؟ با حذف این پرونده، برای انجام ارزیابی جدید باید هزینه ارزیابی مجدداً پرداخت شود.")) {
       return;
     }
 
     try {
       await deleteAssessment(id);
       setAssessments((prev) => prev.filter((a) => a.id !== id));
-      setStatusMessage({ text: "پرونده ارزیابی با موفقیت حذف شد.", type: "success" });
+      setStatusMessage({ text: "پرونده ارزیابی با موفقیت حذف شد. اکنون می‌توانید یک ارزیابی جدید ثبت فرمایید.", type: "success" });
     } catch (e: any) {
       setStatusMessage({ text: "خطا در حذف پرونده", type: "error" });
     }
@@ -364,22 +367,35 @@ export default function UserPanelModal({
 
                     <div className="flex items-center gap-1.5 self-end sm:self-auto">
                       <button
-                        onClick={() => handleOpenAssessment(asmt.id)}
+                        onClick={() => {
+                          if (!user.isPaid) {
+                            onClose();
+                            onOpenPayment?.();
+                          } else {
+                            handleOpenAssessment(asmt.id);
+                          }
+                        }}
                         disabled={loadingAssessmentId === asmt.id}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-600 text-emerald-800 hover:text-white font-bold text-xs border border-emerald-200 hover:border-emerald-600 transition-colors"
-                        title="مشاهده و بارگذاری در پنل نتایج"
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs border transition-colors cursor-pointer ${
+                          !user.isPaid
+                            ? "bg-amber-500 hover:bg-amber-400 text-slate-950 border-amber-400 shadow-sm"
+                            : "bg-emerald-50 hover:bg-emerald-600 text-emerald-800 hover:text-white border-emerald-200 hover:border-emerald-600"
+                        }`}
+                        title={!user.isPaid ? "پرداخت هزینه و باز کردن نتایج" : "مشاهده و بارگذاری در پنل نتایج"}
                       >
                         {loadingAssessmentId === asmt.id ? (
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : !user.isPaid ? (
+                          <Lock className="w-3.5 h-3.5" />
                         ) : (
                           <ExternalLink className="w-3.5 h-3.5" />
                         )}
-                        <span>مشاهده نتیجه کامل</span>
+                        <span>{!user.isPaid ? "پرداخت و مشاهده نتایج" : "مشاهده نتیجه کامل"}</span>
                       </button>
 
                       <button
                         onClick={() => handleDelete(asmt.id)}
-                        className="p-1.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                        className="p-1.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                         title="حذف این پرونده"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -387,35 +403,56 @@ export default function UserPanelModal({
                     </div>
                   </div>
 
-                  {/* Destinations summary chips */}
-                  <div>
-                    <div className="text-[11px] font-bold text-slate-500 mb-2">
-                      مقصدهای پیشنهادی محاسبه‌شده:
+                  {/* Destinations summary chips or Locked State */}
+                  {!user.isPaid ? (
+                    <div className="bg-amber-50/80 border border-amber-200/90 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                      <div className="flex items-center gap-2.5 text-amber-950">
+                        <Lock className="w-4 h-4 text-amber-600 shrink-0" />
+                        <span className="font-bold">
+                          نتایج این ارزیابی قفل است. برای مشاهده ۳ مقصد برتر و نقشه راه اختصاصی، هزینه این ارزیابی را پرداخت فرمایید.
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          onClose();
+                          onOpenPayment?.();
+                        }}
+                        className="w-full sm:w-auto px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl font-black text-xs shrink-0 shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <Lock className="w-3.5 h-3.5" />
+                        <span>پرداخت و آزادسازی</span>
+                      </button>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      {asmt.primaryDestinations.map((dest, i) => (
-                        <div
-                          key={i}
-                          className="bg-slate-50 border border-slate-200/70 rounded-xl p-2.5 flex items-center justify-between text-xs"
-                        >
-                          <div className="flex items-center gap-2 overflow-hidden">
-                            <span className="text-lg shrink-0">{dest.flagEmoji || "🌐"}</span>
-                            <div className="truncate">
-                              <span className="font-bold text-slate-900 block truncate">
-                                {dest.countryNameFa}
-                              </span>
-                              <span className="text-[10px] text-slate-500 block truncate">
-                                {dest.routeNameFa}
-                              </span>
+                  ) : (
+                    <div>
+                      <div className="text-[11px] font-bold text-slate-500 mb-2">
+                        مقصدهای پیشنهادی محاسبه‌شده:
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        {asmt.primaryDestinations.map((dest, i) => (
+                          <div
+                            key={i}
+                            className="bg-slate-50 border border-slate-200/70 rounded-xl p-2.5 flex items-center justify-between text-xs"
+                          >
+                            <div className="flex items-center gap-2 overflow-hidden">
+                              <span className="text-lg shrink-0">{dest.flagEmoji || "🌐"}</span>
+                              <div className="truncate">
+                                <span className="font-bold text-slate-900 block truncate">
+                                  {dest.countryNameFa}
+                                </span>
+                                <span className="text-[10px] text-slate-500 block truncate">
+                                  {dest.routeNameFa}
+                                </span>
+                              </div>
                             </div>
+                            <span className="shrink-0 font-extrabold text-[11px] px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800">
+                              {dest.fitScore}٪
+                            </span>
                           </div>
-                          <span className="shrink-0 font-extrabold text-[11px] px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800">
-                            {dest.fitScore}٪
-                          </span>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               ))}
             </div>

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   Sparkles, 
   CheckCircle2, 
@@ -29,7 +29,7 @@ import {
   Lock
 } from "lucide-react";
 import { RecommendationSummary, RecommendedRouteResult, UserAssessmentProfile } from "../types";
-import { AuthUser } from "../services/authService";
+import { AuthUser, fetchPaymentConfig, PaymentConfig } from "../services/authService";
 
 interface ResultsDashboardProps {
   summary: RecommendationSummary;
@@ -61,6 +61,14 @@ export default function ResultsDashboard({
   onOpenPayment
 }: ResultsDashboardProps) {
   const isPaid = Boolean(user?.isPaid);
+  const [config, setConfig] = useState<PaymentConfig | null>(null);
+
+  useEffect(() => {
+    fetchPaymentConfig()
+      .then((cfg) => setConfig(cfg))
+      .catch((err) => console.warn("Could not load payment config in results:", err));
+  }, []);
+
   const [primaryChoiceCode, setPrimaryChoiceCode] = useState<string>(
     summary.primaryDestinations[0]?.countryCode || ""
   );
@@ -74,6 +82,65 @@ export default function ResultsDashboard({
   const toggleExpand = (routeId: string) => {
     setExpandedCardId(prev => prev === routeId ? null : routeId);
   };
+
+  // STRICT PAYWALL: If user has not paid, ZERO results are leaked!
+  if (!isPaid) {
+    const priceTomans = config?.amountTomans ?? 499000;
+    return (
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-12 text-right" dir="rtl">
+        <div className="bg-white rounded-3xl shadow-2xl border border-slate-200/90 overflow-hidden text-center p-8 sm:p-14 relative">
+          <div className="w-20 h-20 rounded-3xl bg-amber-500/10 text-amber-600 border border-amber-500/20 flex items-center justify-center mx-auto mb-6 shadow-inner">
+            <Lock className="w-10 h-10" />
+          </div>
+
+          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold mb-4">
+            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+            <span>محاسبه و تطبیق شرایط پرونده شما با موفقیت انجام شد</span>
+          </div>
+
+          <h1 className="text-2xl sm:text-4xl font-black text-slate-900 mb-4 tracking-tight leading-snug">
+            مشاهده نتایج ارزیابی و ۳ مقصد طلایی
+          </h1>
+
+          <p className="text-slate-600 text-xs sm:text-sm leading-relaxed max-w-xl mx-auto mb-8">
+            نتایج تحلیل هوشمند شرایط شما، امتیاز شانس ویزا، کف تمکن مالی مصوب سفارت‌ها در سال ۲۰۲۶ و برنامه اقدام اختصاصی آماده است. جهت مشاهده نتایج کامل، لطفاً هزینه ارزیابی این فرم را پرداخت فرمایید.
+          </p>
+
+          {/* Pricing Highlight Box */}
+          <div className="max-w-md mx-auto bg-gradient-to-r from-slate-900 via-slate-800 to-emerald-950 text-white rounded-3xl p-6 mb-8 border border-slate-700 shadow-xl">
+            <span className="text-xs text-emerald-200/80 block mb-1 font-medium">هزینه نهایی ارزیابی و آزادسازی نتایج کامل:</span>
+            <div className="flex items-baseline justify-center gap-2 my-2">
+              <span className="text-4xl sm:text-5xl font-black text-amber-300 font-mono tracking-tight">
+                {priceTomans.toLocaleString("fa-IR")}
+              </span>
+              <span className="text-sm sm:text-base font-bold text-emerald-100">تومان</span>
+            </div>
+            <div className="pt-3 border-t border-white/10 text-[11.5px] text-emerald-300 flex items-center justify-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              <span>پرداخت یک‌باره برای این فرم — بدون هزینه اشتراک ماهانه</span>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5">
+            <button
+              onClick={onOpenPayment}
+              className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 hover:to-teal-500 text-white rounded-2xl font-black text-sm shadow-xl shadow-emerald-600/30 transition-all transform hover:scale-[1.02] flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <Lock className="w-4 h-4" />
+              <span>پرداخت هزینه و آزادسازی فوری نتایج ({priceTomans.toLocaleString("fa-IR")} ت)</span>
+            </button>
+
+            <button
+              onClick={onEditProfile}
+              className="w-full sm:w-auto px-6 py-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-bold text-xs transition-colors cursor-pointer"
+            >
+              ویرایش اطلاعات فرم
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 text-right space-y-8">
