@@ -23,6 +23,7 @@ import {
 } from "./server/db.ts";
 import { sendOtpSms } from "./server/smsService.ts";
 import { getAssessmentPriceTomans, setAssessmentPriceTomans } from "./server/settings.ts";
+import { generateGroqImmigrationAnalysis } from "./server/groqService.ts";
 import crypto from "node:crypto";
 
 dotenv.config();
@@ -631,6 +632,22 @@ app.post("/api/admin/price", adminAuthMiddleware, (req, res) => {
   } catch (err: any) {
     console.error("Error setting assessment price:", err);
     return res.status(500).json({ error: "خطا در به‌روزرسانی مبلغ ارزیابی." });
+  }
+});
+
+// Groq AI Deep Immigration Evaluation API
+app.post("/api/assessment/groq-evaluate", async (req, res) => {
+  try {
+    const profile = req.body;
+    if (!profile) {
+      return res.status(400).json({ error: "پروفایل متقاضی یافت نشد." });
+    }
+    console.log(`[Groq AI Evaluation] Processing profile for: ${profile.fullName || "متقاضی"}, Age: ${profile.age}, Goal: ${profile.migrationGoal}`);
+    const evaluation = await generateGroqImmigrationAnalysis(profile);
+    return res.json({ success: true, evaluation });
+  } catch (err: any) {
+    console.error("Groq evaluation failed:", err);
+    return res.status(500).json({ error: "خطا در ارزیابی هوش مصنوعی Groq." });
   }
 });
 

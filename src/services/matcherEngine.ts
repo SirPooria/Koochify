@@ -86,9 +86,46 @@ export function evaluateUserMigrationProfile(profile: UserAssessmentProfile): Re
 
   // Age analysis
   if (profile.age >= 18 && profile.age <= 32) {
-    profileStrengths.push(`سن در بازه طلایی (${profile.age} سال) جهت کسب حداکثر امتیاز در سیستم‌های امتیازی نظیر کانادا، آلمان و استرالیا.`);
+    profileStrengths.push(`سن در بازه طلایی (${profile.age} سال) جهت کسب حداکثر امتیاز در سیستم‌های امتیازی نظیر کانادا، آلمان و استرالیا و ریسک بسیار پایین در صدور ویزای تحصیلی.`);
+  } else if (profile.age >= 33 && profile.age <= 40) {
+    if (profile.migrationGoal === "study") {
+      profileGaps.push(`سن (${profile.age} سال) برای مقطع کارشناسی ارشد در سفارت‌های کانادا و استرالیا نیازمند تبیین قوی قصد تحصیلی (SOP) و توجیه با سابقه کار است؛ مقاصدی نظیر آلمان، ایتالیا یا دکترا ریسک بسیار کمتری دارند.`);
+    } else {
+      profileStrengths.push(`سن (${profile.age} سال) با تجربه کاری ارزشمند که همچنان در بازه مجاز کارت شانس آلمان و جاب‌آفر اروپا قرار دارد.`);
+    }
   } else if (profile.age > 45) {
-    profileGaps.push(`سن بالای ۴۵ سال محدودیت جدی در مسیرهای اقامت دائم فدرال استرالیا، نیوزیلند و امتیاز FSW کانادا ایجاد می‌کند.`);
+    profileGaps.push(`سن بالای ۴۵ سال محدودیت جدی در مسیرهای اقامت دائم فدرال استرالیا، نیوزیلند و امتیاز FSW کانادا ایجاد می‌کند؛ تمرکز بر مسیرهای تخصصی جاب‌آفر، بلوکارت، ثبت شرکت یا خودحمایتی اولویت دارد.`);
+  }
+
+  // Study Gap Analysis
+  const gapYears = profile.studyGapYears ?? (profile.graduationYear ? Math.max(0, 1404 - profile.graduationYear) : undefined);
+  if (gapYears !== undefined) {
+    if (gapYears <= 2) {
+      profileStrengths.push(`گپ تحصیلی بسیار پایین یا صفر (${gapYears} سال) که پرونده شما را از نظر آفیسر ویزای تحصیلی کاملاً شفاف و بی‌ریسک نشان می‌دهد.`);
+    } else if (gapYears >= 3 && gapYears <= 5) {
+      if (profile.studyGapReason === "working_with_insurance" || profile.hasDocumentedInsuranceOrTaxes === "full_official") {
+        profileStrengths.push(`گپ تحصیلی ${gapYears} ساله شما به طور قانونی با سابقه کار و بیمه رسمی پوشش داده شده و به جای ضعف، امتیاز تجربی محسوب می‌شود.`);
+      } else {
+        profileGaps.push(`گپ تحصیلی ${gapYears} ساله بدون سابقه بیمه رسمی نیازمند ارائه مستندات کاری، فریلنسری یا مدارک زبان جهت پیشگیری از ابهام آفیسر سفارت است.`);
+      }
+    } else if (gapYears > 5) {
+      if (profile.studyGapReason === "working_with_insurance" || profile.hasDocumentedInsuranceOrTaxes === "full_official") {
+        profileStrengths.push(`گپ تحصیلی طولانی (${gapYears} سال) به طور پیوسته با سوابق شغلی و تخصصی معتبر پر شده که مسیر مهاجرت کاری را بسیار هموار می‌کند.`);
+      } else {
+        profileGaps.push(`گپ تحصیلی طولانی بالای ۵ سال (${gapYears} سال) در صورت اقدام تحصیلی در سفارت‌های سخت‌گیر (کانادا، استرالیا، آلمان) ریسک ریجکتی به همراه دارد؛ مسیرهای پژوهشی با استاد یا مهاجرت کاری اولویت بالاتری دارند.`);
+      }
+    }
+  }
+
+  // Marital Status & Family Analysis
+  if (profile.maritalStatus === "married_together") {
+    if (profile.spouseLanguageLevel && profile.spouseLanguageLevel !== "none") {
+      profileStrengths.push(`مهارت زبانی همسر امتیاز قابل توجهی به پرونده شما در سیستم‌های امتیازی اضافه کرده و احتمال اشتغال سریع خانواده در مقصد را بالا می‌برد.`);
+    }
+    if (profile.spouseEducation && profile.spouseEducation !== "diploma" && profile.spouseEducation !== "none") {
+      profileStrengths.push(`تحصیلات دانشگاهی همسر امکان همراهی همزمان و بهره‌مندی از ویزای کار باز (Open Work Permit) در کانادا و کشورهای اروپایی را فراهم می‌کند.`);
+    }
+    profileGaps.push(`اقدام همزمان خانوادگی (${profile.dependentsCount > 0 ? `با ${profile.dependentsCount} فرزند` : "همراه با همسر"}) نیازمند تامین کف تمکن مالی بالاتری در حساب مسدود سفارت نسبت به متقاضی مجرد است.`);
   }
 
   // Degree analysis

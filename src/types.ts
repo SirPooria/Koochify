@@ -41,6 +41,11 @@ export interface UserAssessmentProfile {
   dependentsCount: number;
   dependentsAges: number[];
   familyJoinTiming: "together" | "join_later" | "no_dependents";
+  spouseEducation?: DegreeLevel | "none";
+  spouseLanguageLevel?: CEFRLevel | "none";
+  spouseWorkExperienceYears?: number;
+  spouseOccupation?: string;
+  childrenSchoolAgeCount?: number;
 
   // Education
   highestDegree: DegreeLevel;
@@ -51,6 +56,8 @@ export interface UserAssessmentProfile {
   gpa: number; // e.g. 16.5
   gpaScale: "20" | "4.0" | "100" | "unsure";
   graduationYear: number;
+  studyGapYears?: number;
+  studyGapReason?: "working_with_insurance" | "working_freelance" | "military_service" | "language_study" | "family_or_other";
   hasOfficialDegreeInHand: "yes" | "unofficial_only" | "in_progress" | "no";
   thesisOrCapstoneCompleted: boolean;
   taughtInEnglish: boolean;
@@ -228,6 +235,45 @@ export interface RecommendedRouteResult {
   lastVerifiedAt: string;
 }
 
+export interface GroqAIDestination {
+  country: string;
+  route: string;
+  suitabilityScore: number;
+  visaChance: string;
+  reasoning: string;
+  familyNotes: string;
+  financialNotes: string;
+}
+
+export interface GroqAIEvaluation {
+  aiAnalysisTitle: string;
+  caseFeasibilityScore: number;
+  lawyerVerdict: string;
+  ageAndFamilyImpact: {
+    ageVerdictFa: string;
+    maritalStatusImpactFa: string;
+    dependentsBudgetImpactFa: string;
+    spouseRoleFa: string;
+  };
+  studyGapAssessment: {
+    gapStatusFa: string;
+    isRiskyForVisa: boolean;
+    remedyAdviceFa: string;
+    embassyVibeFa: string;
+  };
+  financialAssessment: {
+    estimatedTotalBudgetNeededFa: string;
+    breakdownByFamilyFa: string;
+    costSavingAdviceFa: string;
+  };
+  topDestinations: GroqAIDestination[];
+  hiddenRejectionRisks: string[];
+  legalStrategies: string[];
+  actionableRoadmap: string[];
+  generatedAt: string;
+  modelUsed: string;
+}
+
 export interface RecommendationSummary {
   primaryDestinations: RecommendedRouteResult[]; // Up to 3 distinct countries
   allEvaluatedRoutes?: RecommendedRouteResult[];
@@ -238,6 +284,7 @@ export interface RecommendationSummary {
   overallRoadmapSummaryFa: string;
   evaluationTimestamp: string;
   isUnderAge18: boolean;
+  aiEvaluation?: GroqAIEvaluation;
   specificTargetCountryResult?: {
     countryName: string;
     route?: RecommendedRouteResult;

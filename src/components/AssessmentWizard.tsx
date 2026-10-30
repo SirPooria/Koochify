@@ -51,6 +51,11 @@ export const DEFAULT_PROFILE: UserAssessmentProfile = {
   dependentsCount: 0,
   dependentsAges: [],
   familyJoinTiming: "no_dependents",
+  spouseEducation: "bachelor",
+  spouseLanguageLevel: "B1",
+  spouseWorkExperienceYears: 2,
+  spouseOccupation: "",
+  childrenSchoolAgeCount: 0,
 
   highestDegree: "bachelor",
   fieldOfStudy: "مهندسی کامپیوتر",
@@ -59,7 +64,9 @@ export const DEFAULT_PROFILE: UserAssessmentProfile = {
   universityType: "state_regular",
   gpa: 16.5,
   gpaScale: "20",
-  graduationYear: 1399,
+  graduationYear: 1400,
+  studyGapYears: 3,
+  studyGapReason: "working_with_insurance",
   hasOfficialDegreeInHand: "yes",
   thesisOrCapstoneCompleted: true,
   taughtInEnglish: false,
@@ -610,6 +617,30 @@ export default function AssessmentWizard({
                   <span className="text-emerald-800 font-extrabold">۳۰ سال (طلایی)</span>
                   <span>۶۵ سال</span>
                 </div>
+                {/* Dynamic Age Impact Guidance */}
+                <div className="mt-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+                  {profile.age <= 32 ? (
+                    <span className="text-emerald-800 font-bold flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span><strong>بازه سنی طلایی ({profile.age} سال):</strong> حداکثر امتیاز مهاجرت کاری (کانادا، استرالیا، آلمان) و کمترین ریسک در صدور ویزای تحصیلی.</span>
+                    </span>
+                  ) : profile.age <= 40 ? (
+                    <span className="text-teal-800 font-bold flex items-center gap-1.5">
+                      <Info className="w-4 h-4 text-teal-600 shrink-0" />
+                      <span><strong>بازه سنی میانی ({profile.age} سال):</strong> امتیاز کاری متعادل؛ در صورت اقدام تحصیلی ارشد، توجیه سوابق کاری در SOP برای متقاعدسازی آفیسر ضروری است.</span>
+                    </span>
+                  ) : profile.age <= 45 ? (
+                    <span className="text-amber-900 font-bold flex items-center gap-1.5">
+                      <HelpCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span><strong>بازه سنی حساس ({profile.age} سال):</strong> افت امتیاز سنی در سیستم‌های فدرال؛ اولویت جدی با جاب‌آفر، کارت شانس آلمان، مقطع دکترا یا استارتاپ است.</span>
+                    </span>
+                  ) : (
+                    <span className="text-rose-900 font-bold flex items-center gap-1.5">
+                      <Shield className="w-4 h-4 text-rose-600 shrink-0" />
+                      <span><strong>بازه سنی ویژه ({profile.age} سال):</strong> اکثر مسیرهای امتیازی عمومی فدرال بسته است؛ تمرکز بر جاب‌آفر شرکتی، بلوکارت، ثبت شرکت یا تمکن مالی شخصی.</span>
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -715,6 +746,90 @@ export default function AssessmentWizard({
                 </select>
               </div>
             </div>
+
+            {/* CONDITIONAL SPOUSE DETAILS BLOCK (When Married) */}
+            {(profile.maritalStatus === "married_together" || profile.maritalStatus === "married_solo") && (
+              <div className="p-5 rounded-2xl bg-gradient-to-br from-indigo-50/90 to-teal-50/90 border-2 border-indigo-200 space-y-4 animate-fade-in">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-indigo-950 font-black text-sm">
+                    <User className="w-5 h-5 text-indigo-700" />
+                    <span>مشخصات و پتانسیل‌های همسر (افزایش امتیاز و بررسی ویزای کار باز):</span>
+                  </div>
+                  <span className="text-[11px] font-bold text-indigo-800 bg-indigo-100 px-2.5 py-0.5 rounded-full border border-indigo-200">
+                    تاثیرگذار در تمکن و امتیاز
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-extrabold text-slate-900 mb-1.5">
+                      آخرین مدرک تحصیلی همسر:
+                    </label>
+                    <select
+                      value={profile.spouseEducation || "bachelor"}
+                      onChange={(e) => updateField("spouseEducation", e.target.value as any)}
+                      className="w-full px-3 py-2.5 rounded-xl border-2 border-slate-300 text-xs font-bold text-slate-900 bg-white focus:outline-hidden focus:border-indigo-600"
+                    >
+                      <option value="diploma">دیپلم یا کاردانی</option>
+                      <option value="bachelor">کارشناسی (لیسانس)</option>
+                      <option value="master">کارشناسی ارشد (فوق‌لیسانس)</option>
+                      <option value="phd">دکتری تخصصی</option>
+                      <option value="none">بدون مدرک دانشگاهی</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-extrabold text-slate-900 mb-1.5">
+                      سطح زبان خارجی همسر:
+                    </label>
+                    <select
+                      value={profile.spouseLanguageLevel || "B1"}
+                      onChange={(e) => updateField("spouseLanguageLevel", e.target.value as any)}
+                      className="w-full px-3 py-2.5 rounded-xl border-2 border-slate-300 text-xs font-bold text-slate-900 bg-white focus:outline-hidden focus:border-indigo-600"
+                    >
+                      <option value="none">بدون تسلط بر زبان خارجی</option>
+                      <option value="A2">مقدماتی (A2)</option>
+                      <option value="B1">متوسط مکالمه روزمره (B1 / آیلتس ۵)</option>
+                      <option value="B2">خوب و کاربردی (B2 / آیلتس ۶ الی ۶.۵)</option>
+                      <option value="C1">پیشرفته مسلط (C1 / آیلتس ۷+)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-extrabold text-slate-900 mb-1.5">
+                      سابقه کار شغلی همسر:
+                    </label>
+                    <select
+                      value={profile.spouseWorkExperienceYears || 2}
+                      onChange={(e) => updateField("spouseWorkExperienceYears", parseInt(e.target.value))}
+                      className="w-full px-3 py-2.5 rounded-xl border-2 border-slate-300 text-xs font-bold text-slate-900 bg-white focus:outline-hidden focus:border-indigo-600"
+                    >
+                      <option value={0}>بدون سابقه کار رسمی</option>
+                      <option value={1}>۱ تا ۲ سال سابقه کار</option>
+                      <option value={3}>۳ تا ۵ سال سابقه کار</option>
+                      <option value={6}>بیش از ۵ سال سابقه کار</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="bg-white/80 p-3 rounded-xl border border-indigo-200 text-xs text-indigo-950 font-medium leading-relaxed">
+                  💡 <strong>نکته حقوقی بسیار مهم:</strong> در مقاصد پیشرو مانند آلمان، کانادا و فرانسه، همسر متقاضی می‌تواند با ویزای کار باز (Open Work Permit) تمام‌وقت در هر صنعتی مشغول به کار شود. همچنین تحصیلات و زبان همسر در پرونده‌های اکسپرس اینتری و اسکیل‌ورکر استرالیا تا ۲۰+ امتیاز حیاتی مستقیم به پرونده شما تزریق می‌کند.
+                </div>
+              </div>
+            )}
+
+            {/* CONDITIONAL CHILDREN DETAILS (When Dependents > 0) */}
+            {profile.dependentsCount > 0 && (
+              <div className="p-4 rounded-2xl bg-amber-50/90 border border-amber-300 text-xs text-amber-950 space-y-2 animate-fade-in">
+                <div className="font-extrabold flex items-center gap-1.5">
+                  <Info className="w-4 h-4 text-amber-700 shrink-0" />
+                  <span>بررسی وضعیت فرزندان ({profile.dependentsCount} فرزند):</span>
+                </div>
+                <p className="leading-relaxed">
+                  در آلمان، فرانسه، کانادا و عموم کشورهای اروپایی، فرزندان متقاضیان ویزای کار یا تحصیل به صورت <strong>کاملاً رایگان در مدارس دولتی</strong> ثبت‌نام می‌شوند و نیازی به شهریه مدارس بین‌المللی گران‌قیمت ندارید. البته کف تمکن مالی مسدود در حساب بانکی به ازای هر فرزند افزایش می‌یابد که کوچیفای آن را در بخش مالی دقیق محاسبه می‌کند.
+                </p>
+              </div>
+            )}
           </div>
         )}
 
@@ -809,6 +924,86 @@ export default function AssessmentWizard({
               </div>
             </div>
 
+            {/* STUDY GAP & GRADUATION YEAR SECTION (CRITICAL FOR VISA) */}
+            <div className="p-5 rounded-2xl bg-slate-50 border-2 border-slate-300 space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-black text-slate-900 flex items-center gap-2">
+                  <GraduationCap className="w-5 h-5 text-emerald-700" />
+                  <span>سال فارغ‌التحصیلی و تحلیل گپ تحصیلی (Study Gap):</span>
+                </span>
+                <span className="text-xs font-bold text-slate-600 bg-slate-200 px-2.5 py-0.5 rounded-full">
+                  معیار اصلی آفیسر ویزا
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-extrabold text-slate-900 mb-1.5">
+                    سال اخذ آخرین مدرک (فارغ‌التحصیلی):
+                  </label>
+                  <select
+                    value={profile.graduationYear || 1400}
+                    onChange={(e) => {
+                      const yr = parseInt(e.target.value);
+                      updateField("graduationYear", yr);
+                      const estimatedGap = Math.max(0, 1404 - yr);
+                      updateField("studyGapYears", estimatedGap);
+                    }}
+                    className="w-full px-3 py-2.5 rounded-xl border-2 border-slate-300 text-xs font-bold text-slate-900 bg-white focus:outline-hidden focus:border-emerald-600"
+                  >
+                    {[1404, 1403, 1402, 1401, 1400, 1399, 1398, 1397, 1396, 1395, 1394, 1393, 1392, 1391, 1390, 1385, 1380].map(y => (
+                      <option key={y} value={y}>سال {y} {y >= 1402 ? "(فارغ‌التحصیل تازه)" : ""}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-extrabold text-slate-900 mb-1.5">
+                    طول گپ تحصیلی (فاصله تا امروز):
+                  </label>
+                  <select
+                    value={profile.studyGapYears ?? 2}
+                    onChange={(e) => updateField("studyGapYears", parseInt(e.target.value))}
+                    className="w-full px-3 py-2.5 rounded-xl border-2 border-slate-300 text-xs font-bold text-slate-900 bg-white focus:outline-hidden focus:border-emerald-600"
+                  >
+                    <option value={0}>بدون گپ / هنوز دانشجو هستم</option>
+                    <option value={1}>زیر ۲ سال (بدون ریسک ویزا)</option>
+                    <option value={3}>۲ تا ۴ سال (گپ معمول و قابل توجیه)</option>
+                    <option value={6}>۵ تا ۸ سال (گپ حساس)</option>
+                    <option value={10}>بیش از ۸ سال (گپ طولانی)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-extrabold text-slate-900 mb-1.5">
+                    نحوه گذراندن فاصله تحصیلی (پوشش گپ):
+                  </label>
+                  <select
+                    value={profile.studyGapReason || "working_with_insurance"}
+                    onChange={(e) => updateField("studyGapReason", e.target.value as any)}
+                    className="w-full px-3 py-2.5 rounded-xl border-2 border-slate-300 text-xs font-bold text-slate-900 bg-white focus:outline-hidden focus:border-emerald-600"
+                  >
+                    <option value="working_with_insurance">اشتغال تمام‌وقت با سابقه بیمه رسمی تأمین اجتماعی</option>
+                    <option value="working_freelance">کار شرکتی بدون بیمه / پروژه‌ای و فریلنسری</option>
+                    <option value="military_service">خدمت وظیفه سربازی</option>
+                    <option value="language_study">آموزش فشرده زبان و اخذ مدرک بین‌المللی</option>
+                    <option value="family_or_other">امور شخصی، خانوادگی یا فترت شغلی</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Legal explanation box on Study Gap */}
+              <div className="p-3.5 rounded-xl bg-cyan-50/80 border border-cyan-300 text-xs text-cyan-950 space-y-1.5">
+                <div className="font-extrabold flex items-center gap-1.5 text-cyan-900">
+                  <Info className="w-4 h-4 text-cyan-700 shrink-0" />
+                  <span>آیا گپ تحصیلی در صدور ویزا تاثیر دارد؟ (تحلیل خط قرمز سفارت‌ها):</span>
+                </div>
+                <p className="leading-relaxed">
+                  <strong>بله، کاملاً!</strong> سفارت‌های سخت‌گیر نظیر <strong>کانادا، استرالیا و آلمان</strong> به گپ‌های تحصیلی بالای ۳ تا ۵ سال که فاقد دلیل مستند باشند، به عنوان عدم قصد واقعی تحصیل (Lack of bona fide intent) برچسب زده و پرونده را ریجکت می‌کنند. اما اگر در این فاصله <strong>سابقه کار با بیمه</strong> داشته‌اید، گپ شما کاملاً موجه و حتی یک مزیت تجربی تلقی می‌شود. همچنین برای <strong>مهاجرت کاری</strong>، گپ تحصیلی اصلاً ضعف نیست بلکه نشانه سال‌ها سابقه کار است!
+                </p>
+              </div>
+            </div>
+
             {/* Conditional Study Questions */}
             {(profile.migrationGoal === "study" || profile.migrationGoal === "both" || profile.migrationGoal === "unsure") && (
               <div className="p-5 rounded-2xl bg-emerald-50 border-2 border-emerald-300 space-y-4 shadow-xs">
@@ -872,6 +1067,23 @@ export default function AssessmentWizard({
         {/* STEP 4: WORK EXPERIENCE & SKILLS */}
         {currentStep === 4 && (
           <div className="space-y-6">
+            {profile.migrationGoal === "study" && (
+              <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-300 text-xs text-emerald-950 flex items-center gap-2">
+                <Info className="w-4 h-4 text-emerald-700 shrink-0" />
+                <span>
+                  <strong>نکته برای متقاضیان تحصیلی:</strong> در صورتی که دانشجو یا فارغ‌التحصیل تازه هستید و هنوز سابقه کار رسمی ندارید، سابقه کار را ۰ سال انتخاب کنید؛ برای پذیرش تحصیلی فقدان سابقه کار مانع ویزا نخواهد بود.
+                </span>
+              </div>
+            )}
+            {profile.migrationGoal === "work" && (
+              <div className="p-3.5 rounded-2xl bg-blue-50 border border-blue-300 text-xs text-blue-950 flex items-center gap-2">
+                <Briefcase className="w-4 h-4 text-blue-700 shrink-0" />
+                <span>
+                  <strong>نکته برای متقاضیان کاری:</strong> سابقه بیمه رسمی، انطباق کد شغلی با لیست‌های تقاضای اروپا (کارت شانس آلمان) یا کانادا، مهم‌ترین اهرم ویزای کار هستند.
+                </span>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <div>
                 <label className="block text-sm font-extrabold text-slate-900 mb-2">

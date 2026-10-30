@@ -1,4 +1,4 @@
-import { UserAssessmentProfile, RecommendationSummary } from "../types";
+import { UserAssessmentProfile, RecommendationSummary, GroqAIEvaluation } from "../types";
 
 export interface AuthUser {
   id: string;
@@ -327,6 +327,30 @@ export async function fetchUserAssessments(): Promise<SavedAssessmentSummary[]> 
   }
 
   return data.assessments || [];
+}
+
+/**
+ * Request Groq AI Deep Immigration Evaluation
+ */
+export async function fetchGroqEvaluation(profile: UserAssessmentProfile): Promise<GroqAIEvaluation | null> {
+  try {
+    const res = await fetch("/api/assessment/groq-evaluate", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(profile),
+    });
+    if (!res.ok) {
+      console.warn("Groq API endpoint returned status:", res.status);
+      return null;
+    }
+    const data = await res.json();
+    return data.evaluation || null;
+  } catch (err) {
+    console.warn("Failed to fetch Groq evaluation:", err);
+    return null;
+  }
 }
 
 /**

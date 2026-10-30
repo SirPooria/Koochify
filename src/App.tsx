@@ -22,7 +22,8 @@ import {
   getStoredUser, 
   saveAssessmentToCloud,
   fetchUserAssessments,
-  deleteAssessment
+  deleteAssessment,
+  fetchGroqEvaluation
 } from "./services/authService";
 import { 
   UserAssessmentProfile, 
@@ -135,6 +136,18 @@ export default function App() {
     const summary = evaluateUserMigrationProfile(profile);
     setResults(summary);
     setIsSavedToCloud(false);
+
+    // Call Groq AI deep evaluation in background/parallel to enrich dossier
+    fetchGroqEvaluation(profile).then((aiEval) => {
+      if (aiEval) {
+        summary.aiEvaluation = aiEval;
+        setResults((prev) => (prev ? { ...prev, aiEvaluation: aiEval } : prev));
+        // If already paid and saved, update in cloud
+        if (freshUser?.isPaid) {
+          saveAssessmentToCloud(profile, { ...summary, aiEvaluation: aiEval }).catch(console.warn);
+        }
+      }
+    }).catch((err) => console.warn("Groq AI evaluation async error:", err));
 
     // Fetch fresh user state from server to detect admin manual unlocks or real-time payment
     let freshUser = user;
@@ -278,6 +291,12 @@ export default function App() {
     setUserProfile(imported);
     const summary = evaluateUserMigrationProfile(imported);
     setResults(summary);
+    fetchGroqEvaluation(imported).then((aiEval) => {
+      if (aiEval) {
+        setResults((prev) => (prev ? { ...prev, aiEvaluation: aiEval } : prev));
+      }
+    }).catch(console.warn);
+
     if (!user?.isPaid) {
       setActiveTab("payment");
     } else {

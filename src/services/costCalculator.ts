@@ -45,18 +45,29 @@ const USD_RATES: Record<string, number> = {
 export function calculateRouteCost(route: RouteDefinition, profile: UserAssessmentProfile): ComputedCostResult {
   const pof = route.proofOfFunds;
   const isStudy = route.routeType === "study";
-  const numDependents = profile.familyJoinTiming === "no_dependents" ? 0 : profile.dependentsCount;
+  
+  // Accompanying Family Members:
+  // 1. Accompanying spouse if married and traveling together
+  const isSpouseAccompanying = profile.maritalStatus === "married_together";
+  // 2. Accompanying children
+  const numChildren = profile.familyJoinTiming === "no_dependents" ? 0 : (profile.dependentsCount || 0);
+  const totalAccompanyingMembers = (isSpouseAccompanying ? 1 : 0) + numChildren;
 
   // 1. Official Living Fund
   let livingFund = pof.livingAmountSingle;
   let dependentsAllowance = 0;
 
-  if (numDependents === 1) {
-    livingFund = pof.livingAmountTwoPeople > 0 ? pof.livingAmountTwoPeople : livingFund * 1.4;
+  if (totalAccompanyingMembers === 1) {
+    // 2-person household (e.g. couple without kids, or single parent with 1 child)
+    livingFund = pof.livingAmountTwoPeople > 0 ? pof.livingAmountTwoPeople : Math.round(livingFund * 1.5);
     dependentsAllowance = livingFund - pof.livingAmountSingle;
-  } else if (numDependents > 1) {
-    const baseTwo = pof.livingAmountTwoPeople > 0 ? pof.livingAmountTwoPeople : livingFund * 1.4;
-    const additional = (numDependents - 1) * pof.livingAmountPerAdditionalDependent;
+  } else if (totalAccompanyingMembers > 1) {
+    // Family with 3 or more members
+    const baseTwo = pof.livingAmountTwoPeople > 0 ? pof.livingAmountTwoPeople : Math.round(livingFund * 1.5);
+    const additionalRate = pof.livingAmountPerAdditionalDependent > 0 
+      ? pof.livingAmountPerAdditionalDependent 
+      : Math.round(pof.livingAmountSingle * 0.3);
+    const additional = (totalAccompanyingMembers - 1) * additionalRate;
     livingFund = baseTwo + additional;
     dependentsAllowance = livingFund - pof.livingAmountSingle;
   }
@@ -78,8 +89,8 @@ export function calculateRouteCost(route: RouteDefinition, profile: UserAssessme
 
   // 3. Travel & Initial Settlement buffer (flight, visa fee, deposit)
   let travelAndSettling = isStudy ? 2500 : 3500;
-  if (numDependents > 0) {
-    travelAndSettling += numDependents * 1500;
+  if (totalAccompanyingMembers > 0) {
+    travelAndSettling += totalAccompanyingMembers * 1500;
   }
   const travelInCurrency = Math.round(travelAndSettling / (USD_RATES[pof.currency] || 1));
 
@@ -99,6 +110,15 @@ export function calculateRouteCost(route: RouteDefinition, profile: UserAssessme
     Math.round(pof.livingAmountSingle + dependentsAllowance + annualTuition + travelInCurrency - scholarshipDeduction)
   );
 
+  // Family breakdown descriptor
+  const familyDescriptorFa = totalAccompanyingMembers === 0 
+    ? "متقاضی مجرد (انفرادی)" 
+    : isSpouseAccompanying && numChildren > 0
+    ? `خانواده ${totalAccompanyingMembers + 1} نفره (متقاضی + همسر + ${numChildren} فرزند)`
+    : isSpouseAccompanying
+    ? "زوج متأهل همسفر (متقاضی + همسر)"
+    : `متقاضی همراه با ${numChildren} فرزند`;
+
   // Convert to USD and EUR for international financial planning (No Toman/Rial)
   const rateToUsd = USD_RATES[pof.currency] || 1.0;
   const approxTotalUsd = Math.round(totalInCurrency * rateToUsd);
@@ -106,8 +126,8 @@ export function calculateRouteCost(route: RouteDefinition, profile: UserAssessme
   const approxTotalFa = `معادل حدود ${approxTotalUsd.toLocaleString()} دلار (~${approxTotalEur.toLocaleString()} یورو)`;
 
   const formulaNotesFa = isStudy
-    ? `فرمول محاسبه: تمکن زندگی پایه (${pof.livingAmountSingle.toLocaleString()} ${pof.currency})${dependentsAllowance > 0 ? ` + هزینه همراهان (${dependentsAllowance.toLocaleString()} ${pof.currency})` : ""} + شهریه برآورد شده دوره (${annualTuition.toLocaleString()} ${pof.currency}) + بلیت و ودیعه استقرار اولیه (${travelInCurrency.toLocaleString()} ${pof.currency})${scholarshipDeduction > 0 ? ` - کسر کمک‌هزینه احتمالی (${scholarshipDeduction.toLocaleString()} ${pof.currency})` : ""}.`
-    : `فرمول محاسبه: هزینه اقامت و استقرار اولیه + بلیت و بیمه سلامت مهاجرتی (${travelInCurrency.toLocaleString()} ${pof.currency})${pof.livingAmountSingle > 0 ? ` + تمکن رسمی دوره کاریابی (${pof.livingAmountSingle.toLocaleString()} ${pof.currency})` : " (در صورت جاب‌آفر، حقوق کارفرما هزینه زندگی را پوشش می‌دهد)"}.`;
+    ? `مبنای محاسبه: ${familyDescriptorFa} | تمکن زندگی پایه (${pof.livingAmountSingle.toLocaleString()} ${pof.currency})${dependentsAllowance > 0 ? ` + هزینه همراهان خانواده (${dependentsAllowance.toLocaleString()} ${pof.currency})` : ""} + شهریه برآورد شده دوره (${annualTuition.toLocaleString()} ${pof.currency}) + بلیت و ودیعه استقرار اولیه (${travelInCurrency.toLocaleString()} ${pof.currency})${scholarshipDeduction > 0 ? ` - کسر کمک‌هزینه (${scholarshipDeduction.toLocaleString()} ${pof.currency})` : ""}.`
+    : `مبنای محاسبه: ${familyDescriptorFa} | استقرار اولیه و بلیت پرواز (${travelInCurrency.toLocaleString()} ${pof.currency})${pof.livingAmountSingle > 0 ? ` + تمکن رسمی حساب بانکی (${(pof.livingAmountSingle + dependentsAllowance).toLocaleString()} ${pof.currency})` : " (در صورت داشتن جاب‌آفر، حقوق کارفرما هزینه زندگی را پوشش می‌دهد)"}.`;
 
   return {
     currency: pof.currency,

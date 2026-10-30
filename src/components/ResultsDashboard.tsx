@@ -26,10 +26,11 @@ import {
   CloudUpload,
   Phone,
   BookmarkCheck,
-  Lock
+  Lock,
+  User
 } from "lucide-react";
-import { RecommendationSummary, RecommendedRouteResult, UserAssessmentProfile } from "../types";
-import { AuthUser, fetchPaymentConfig, PaymentConfig } from "../services/authService";
+import { RecommendationSummary, RecommendedRouteResult, UserAssessmentProfile, GroqAIEvaluation } from "../types";
+import { AuthUser, fetchPaymentConfig, PaymentConfig, fetchGroqEvaluation } from "../services/authService";
 
 interface ResultsDashboardProps {
   summary: RecommendationSummary;
@@ -78,6 +79,33 @@ export default function ResultsDashboard({
   const [expandedCardId, setExpandedCardId] = useState<string | null>(
     summary.primaryDestinations[0]?.routeId || null
   );
+
+  const [aiEvaluation, setAiEvaluation] = useState<GroqAIEvaluation | null>(summary.aiEvaluation || null);
+  const [isAiLoading, setIsAiLoading] = useState(false);
+
+  useEffect(() => {
+    if (!aiEvaluation) {
+      setIsAiLoading(true);
+      fetchGroqEvaluation(profile)
+        .then((res) => {
+          if (res) setAiEvaluation(res);
+        })
+        .catch(console.warn)
+        .finally(() => setIsAiLoading(false));
+    }
+  }, [profile]);
+
+  const handleRegenerateAi = async () => {
+    setIsAiLoading(true);
+    try {
+      const res = await fetchGroqEvaluation(profile);
+      if (res) setAiEvaluation(res);
+    } catch (err) {
+      console.warn("Failed to regenerate Groq AI analysis:", err);
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
 
   const toggleExpand = (routeId: string) => {
     setExpandedCardId(prev => prev === routeId ? null : routeId);
@@ -360,6 +388,210 @@ export default function ResultsDashboard({
               </li>
             ))}
           </ul>
+        </div>
+      </div>
+
+      {/* GROQ AI DEEP IMMIGRATION EVALUATION (LLM-POWERED DOSSIER) */}
+      <div className="rounded-3xl border-2 border-indigo-300 bg-gradient-to-br from-indigo-950 via-slate-900 to-indigo-950 text-white p-6 sm:p-8 shadow-2xl relative overflow-hidden">
+        {/* Glow ambient */}
+        <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 space-y-6">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-5 border-b border-indigo-800/60">
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-600 to-cyan-500 flex items-center justify-center text-white shadow-lg shadow-indigo-600/30">
+                <Sparkles className="w-6 h-6 animate-pulse" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-lg sm:text-xl font-black text-white">
+                    {aiEvaluation?.aiAnalysisTitle || "تحلیل تخصصی پرونده توسط هوش مصنوعی Groq"}
+                  </h3>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-400/40">
+                    Llama 3.3 / Qwen LPU
+                  </span>
+                </div>
+                <p className="text-xs text-indigo-200/80 font-medium mt-0.5">
+                  ارزیابی دقیق متناسب با سن، وضعیت تاهل، همراهی همسر، گپ تحصیلی و تمکن مالی ۲۰۲۶
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              {aiEvaluation && (
+                <div className="bg-emerald-500/20 border border-emerald-500/40 px-3.5 py-1.5 rounded-xl text-center">
+                  <span className="text-[10px] text-emerald-300 block font-bold">شاخص موفقیت کلی:</span>
+                  <span className="text-base font-black text-emerald-400">
+                    %{aiEvaluation.caseFeasibilityScore}
+                  </span>
+                </div>
+              )}
+              <button
+                onClick={handleRegenerateAi}
+                disabled={isAiLoading}
+                className="px-3 py-2 rounded-xl bg-indigo-600/80 hover:bg-indigo-600 text-white text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                title="تولید مجدد تحلیل با هوش مصنوعی"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isAiLoading ? "animate-spin" : ""}`} />
+                <span>{isAiLoading ? "در حال تحلیل..." : "بازتحلیل هوش مصنوعی"}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* If loading */}
+          {isAiLoading && !aiEvaluation && (
+            <div className="py-12 text-center text-indigo-200">
+              <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-3 text-cyan-400" />
+              <p className="text-sm font-bold">هوش مصنوعی Groq در حال استخراج و تحلیل ریزترین جزئیات پرونده شماست...</p>
+              <p className="text-xs text-indigo-300/70 mt-1">تطبیق قوانین مهاجرتی، ریسک‌های سن و گپ تحصیلی و محاسبه تمکن خانوادگی</p>
+            </div>
+          )}
+
+          {aiEvaluation && (
+            <>
+              {/* Lawyer Verdict Box */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-white/5 border border-white/10 text-slate-200 text-xs sm:text-sm leading-relaxed">
+                <span className="text-xs font-extrabold text-cyan-400 block mb-1">
+                  ⚖️ نظر کارشناسی و بیانیه کلی وکیل مهاجرتی:
+                </span>
+                <p className="text-slate-100 whitespace-pre-line font-medium">
+                  {aiEvaluation.lawyerVerdict}
+                </p>
+              </div>
+
+              {/* 3 Pillars Grid: Age/Family + Study Gap + Financial */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Pillar 1: Age & Family */}
+                <div className="p-4.5 rounded-2xl bg-indigo-900/40 border border-indigo-700/50 space-y-2.5">
+                  <span className="text-xs font-black text-indigo-300 flex items-center gap-1.5">
+                    <User className="w-4 h-4 text-indigo-400" />
+                    <span>تحلیل سن و وضعیت خانواده</span>
+                  </span>
+                  <div className="text-xs text-slate-200 space-y-1.5 leading-relaxed">
+                    <p><strong>سن:</strong> {aiEvaluation.ageAndFamilyImpact.ageVerdictFa}</p>
+                    <p><strong>وضعیت تاهل:</strong> {aiEvaluation.ageAndFamilyImpact.maritalStatusImpactFa}</p>
+                    <p><strong>نقش همسر:</strong> {aiEvaluation.ageAndFamilyImpact.spouseRoleFa}</p>
+                    <p><strong>فرزندان و همراهان:</strong> {aiEvaluation.ageAndFamilyImpact.dependentsBudgetImpactFa}</p>
+                  </div>
+                </div>
+
+                {/* Pillar 2: Study Gap */}
+                <div className="p-4.5 rounded-2xl bg-teal-900/40 border border-teal-700/50 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-teal-300 flex items-center gap-1.5">
+                      <GraduationCap className="w-4 h-4 text-teal-400" />
+                      <span>تحلیل تخصصی گپ تحصیلی</span>
+                    </span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      aiEvaluation.studyGapAssessment.isRiskyForVisa
+                        ? "bg-rose-500/20 text-rose-300 border border-rose-500/40"
+                        : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                    }`}>
+                      {aiEvaluation.studyGapAssessment.isRiskyForVisa ? "ریسک حساس" : "کنترل‌شده و قانونی"}
+                    </span>
+                  </div>
+                  <div className="text-xs text-slate-200 space-y-1.5 leading-relaxed">
+                    <p><strong>وضعیت گپ:</strong> {aiEvaluation.studyGapAssessment.gapStatusFa}</p>
+                    <p><strong>دیدگاه سفارت:</strong> {aiEvaluation.studyGapAssessment.embassyVibeFa}</p>
+                    <p className="text-teal-200 font-bold"><strong>راهکار SOP:</strong> {aiEvaluation.studyGapAssessment.remedyAdviceFa}</p>
+                  </div>
+                </div>
+
+                {/* Pillar 3: Financial Assessment */}
+                <div className="p-4.5 rounded-2xl bg-amber-900/30 border border-amber-700/50 space-y-2.5">
+                  <span className="text-xs font-black text-amber-300 flex items-center gap-1.5">
+                    <Coins className="w-4 h-4 text-amber-400" />
+                    <span>برآورد تمکن مالی متناسب با خانواده</span>
+                  </span>
+                  <div className="text-xs text-slate-200 space-y-1.5 leading-relaxed">
+                    <p><strong>سرمایه کل مورد نیاز:</strong> <span className="text-amber-300 font-bold">{aiEvaluation.financialAssessment.estimatedTotalBudgetNeededFa}</span></p>
+                    <p><strong>تفکیک همراهان:</strong> {aiEvaluation.financialAssessment.breakdownByFamilyFa}</p>
+                    <p><strong>راهکار تعدیل هزینه:</strong> {aiEvaluation.financialAssessment.costSavingAdviceFa}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Top AI Destinations */}
+              {aiEvaluation.topDestinations && aiEvaluation.topDestinations.length > 0 && (
+                <div className="space-y-3 pt-2">
+                  <span className="text-xs font-extrabold text-cyan-300 block">
+                    🎯 مقاصد طلایی پیشنهادی هوش مصنوعی برای شرایط خاص پرونده شما:
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {aiEvaluation.topDestinations.map((dest, dIdx) => (
+                      <div key={dIdx} className="p-4 rounded-2xl bg-slate-800/80 border border-slate-700 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <strong className="text-sm font-black text-white">{dest.country}</strong>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300">
+                            شانس: {dest.visaChance}
+                          </span>
+                        </div>
+                        <span className="text-xs font-bold text-cyan-400 block">{dest.route}</span>
+                        <p className="text-[11px] text-slate-300 leading-relaxed">{dest.reasoning}</p>
+                        {dest.familyNotes && (
+                          <p className="text-[10px] text-indigo-300 pt-1 border-t border-slate-700">
+                            👨‍👩‍👧 {dest.familyNotes}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Hidden Risks vs Legal Strategies */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                <div className="p-4 rounded-2xl bg-rose-950/30 border border-rose-800/40">
+                  <span className="text-xs font-black text-rose-300 block mb-2">
+                    ⚠️ ریسک‌های پنهان ریجکتی در سفارت:
+                  </span>
+                  <ul className="space-y-1.5 text-xs text-rose-200/90 leading-relaxed">
+                    {aiEvaluation.hiddenRejectionRisks.map((risk, rIdx) => (
+                      <li key={rIdx} className="flex items-start gap-1.5">
+                        <span className="text-rose-400 font-bold shrink-0">✕</span>
+                        <span>{risk}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-emerald-950/30 border border-emerald-700/40">
+                  <span className="text-xs font-black text-emerald-300 block mb-2">
+                    🛡️ راهکارهای حقوقی ضد ریجکتی:
+                  </span>
+                  <ul className="space-y-1.5 text-xs text-emerald-200/90 leading-relaxed">
+                    {aiEvaluation.legalStrategies.map((strat, sIdx) => (
+                      <li key={sIdx} className="flex items-start gap-1.5">
+                        <span className="text-emerald-400 font-bold shrink-0">✓</span>
+                        <span>{strat}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+
+              {/* Actionable Roadmap */}
+              {aiEvaluation.actionableRoadmap && aiEvaluation.actionableRoadmap.length > 0 && (
+                <div className="p-4 rounded-2xl bg-indigo-900/30 border border-indigo-700/40">
+                  <span className="text-xs font-black text-cyan-300 block mb-2">
+                    📋 نقشه راه عملیاتی پیشنهادی هوش مصنوعی:
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-indigo-100">
+                    {aiEvaluation.actionableRoadmap.map((step, sIdx) => (
+                      <div key={sIdx} className="p-2.5 rounded-xl bg-white/5 border border-white/10 flex items-start gap-2">
+                        <span className="w-5 h-5 rounded-lg bg-indigo-600 text-white font-bold text-xs flex items-center justify-center shrink-0">
+                          {sIdx + 1}
+                        </span>
+                        <span className="leading-relaxed">{step}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </div>
       </div>
 
