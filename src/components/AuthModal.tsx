@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { 
-  X, 
-  Phone, 
-  KeyRound, 
-  ArrowRight, 
-  CheckCircle2, 
-  AlertCircle, 
-  Loader2, 
+import {
+  X,
+  Phone,
+  KeyRound,
+  ArrowRight,
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
   Sparkles,
   User as UserIcon,
   ShieldCheck
@@ -146,8 +146,8 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }: AuthModal
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">
                   شماره تلفن همراه
                 </label>
-                <div 
-                  dir="ltr" 
+                <div
+                  dir="ltr"
                   className="flex items-center bg-slate-50 border border-slate-200 rounded-2xl overflow-hidden focus-within:ring-2 focus-within:ring-emerald-500 focus-within:border-transparent transition-all"
                 >
                   <div className="flex items-center gap-1.5 px-3.5 py-3 bg-slate-100/90 border-r border-slate-200 text-slate-600 text-xs font-mono font-bold select-none shrink-0">
