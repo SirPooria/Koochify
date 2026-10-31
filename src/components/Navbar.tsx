@@ -1,7 +1,6 @@
 import React from "react";
 import { 
   Compass, 
-  FileText, 
   Sparkles, 
   User as UserIcon,
   Phone
@@ -108,18 +107,6 @@ export default function Navbar({
             >
               <span>کاتالوگ ۳۰ کشور</span>
             </button>
-
-            <button
-              onClick={() => setActiveTab("resume")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                activeTab === "resume"
-                  ? "bg-white text-emerald-800 shadow-xs font-bold"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
-              }`}
-            >
-              <FileText className="w-3.5 h-3.5" />
-              <span>رزومه‌یار و ATS</span>
-            </button>
           </nav>
 
           {/* Quick Actions */}
@@ -187,14 +174,6 @@ export default function Navbar({
               نتایج من
             </button>
           )}
-          <button
-            onClick={() => setActiveTab("resume")}
-            className={`px-2.5 py-1 rounded-md whitespace-nowrap cursor-pointer ${
-              activeTab === "resume" ? "bg-emerald-600 text-white font-bold" : "text-slate-600"
-            }`}
-          >
-            رزومه‌یار
-          </button>
           {user ? (
             <button
               onClick={onOpenUserPanel}

@@ -418,7 +418,6 @@ export default function App() {
             }}
             onStartAssessment={handleStartAssessment}
             onViewCatalog={() => setActiveTab("catalog")}
-            onOpenResume={() => setActiveTab("resume")}
           />
         )}
 
@@ -527,14 +526,6 @@ export default function App() {
           </div>
         )}
 
-        {activeTab === "resume" && (
-          <ResumeOptimizerSection 
-            profile={userProfile}
-            isPaid={Boolean(user?.isPaid)}
-            onOpenPayment={() => setIsPaymentModalOpen(true)}
-          />
-        )}
-
         {activeTab === "catalog" && (
           <CatalogExplorer />
         )}
@@ -611,6 +602,7 @@ export default function App() {
           onLoadAssessment={handleLoadAssessment}
           currentProfile={userProfile}
           currentResults={results}
+          isSavedToCloud={isSavedToCloud}
           onAssessmentSaved={() => setIsSavedToCloud(true)}
           onOpenPayment={() => setIsPaymentModalOpen(true)}
         />
@@ -647,15 +639,6 @@ export default function App() {
               className="hover:text-emerald-700 transition-colors cursor-pointer"
             >
               کاتالوگ ۳۰ کشور
-            </button>
-            <button 
-              onClick={() => {
-                setActiveTab("resume");
-                window.scrollTo({ top: 0, behavior: "smooth" });
-              }} 
-              className="hover:text-emerald-700 transition-colors cursor-pointer"
-            >
-              رزومه‌یار ATS
             </button>
             <button 
               onClick={() => {

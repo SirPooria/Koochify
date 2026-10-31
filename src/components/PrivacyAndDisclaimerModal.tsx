@@ -201,9 +201,9 @@ export const PrivacyAndDisclaimerModal: React.FC<PrivacyAndDisclaimerModalProps>
                 </div>
 
                 <div className="p-3.5 bg-slate-950/60 rounded-xl border border-slate-800 space-y-2">
-                  <h4 className="font-bold text-slate-200">چگونگی نگهداری رزومه:</h4>
+                  <h4 className="font-bold text-slate-200">چگونگی نگهداری اطلاعات شغلی:</h4>
                   <p className="text-slate-400 leading-relaxed">
-                    متن و سوابق رزومه واردشده صرفاً جهت بررسی و تطبیق استاندارد ATS برای موقعیت‌های شغلی خارجی استفاده شده و تحت هیچ شرایطی ذخیره عمومی یا افشا نمی‌گردد.
+                    متن و سوابق شغلی و تحصیلی واردشده صرفاً جهت سنجش شانس مهاجرت استفاده شده و تحت هیچ شرایطی ذخیره عمومی یا افشا نمی‌گردد.
                   </p>
                 </div>
               </div>

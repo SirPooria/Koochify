@@ -286,6 +286,24 @@ export default function DestinationDossierModal({
                       <span>•</span>
                       <span>هزینه برآورد: {act.estimatedCostFa}</span>
                     </div>
+
+                    {act.links && act.links.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-200/60 mt-2">
+                        <span className="text-[10px] font-extrabold text-slate-700">پرتال‌ها و لینک‌های این مرحله:</span>
+                        {act.links.map((lnk, lIdx) => (
+                          <a
+                            key={lIdx}
+                            href={lnk.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px] font-bold transition-all hover:scale-[1.02] shadow-2xs"
+                          >
+                            <span>{lnk.labelFa}</span>
+                            <ExternalLink className="w-3 h-3 text-emerald-600" />
+                          </a>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}

@@ -227,8 +227,8 @@ export default function PaymentScreen({
             <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-start gap-3">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
               <div>
-                <strong className="block text-slate-900 font-bold mb-0.5">ماژول رزومه‌یار بین‌المللی (ATS Optimizer):</strong>
-                <span className="text-slate-600 leading-relaxed">بهینه‌سازی رزومه انگلیسی مطابق سیستم‌های فیلترینگ کارفرمایان خارجی برای دریافت جاب‌آفر.</span>
+                <strong className="block text-slate-900 font-bold mb-0.5">تحلیل هوش مصنوعی شانس و ریسک‌های پنهان:</strong>
+                <span className="text-slate-600 leading-relaxed">بررسی الگوریتمی گپ تحصیلی، سن، سطح تمکن و ارائه راهکارهای عملی جبران نقاط ضعف.</span>
               </div>
             </div>
 

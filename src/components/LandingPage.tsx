@@ -129,32 +129,32 @@ export default function LandingPage({
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [activeSlide, setActiveSlide] = useState<number>(0);
 
-  // Punchy hero headlines showcasing what Koochify does (Strictly <= 10 words each)
+  // Friendly, punchy hero headlines showcasing what Koochify does
   const HERO_SLIDES = [
     {
-      title: "ارزیابی هوشمند شانس قبولی در ۳۰ کشور دنیا",
-      subtitle: "بررسی الگوریتمی بر مبنای جدیدترین قوانین رسمی سال ۲۰۲۶",
-      badge: "دقت الگوریتمی بدون خطا",
+      title: "می‌خوای بدونی شانس مهاجرتت به کدوم کشور بیشتره؟",
+      subtitle: "شرایطت رو با جدیدترین قوانین ۲۰۲۶ می‌سنجیم تا دقیقاً بدونی کجای کاری.",
+      badge: "دقیق و بدون خطا",
     },
     {
-      title: "انتخاب ۳ مقصد طلایی متناسب با شرایط شما",
-      subtitle: "استخراج بهترین گزینه‌ها بر اساس سن، بودجه، زبان و سوابق",
-      badge: "سازگارترین گزینه‌ها",
+      title: "۳ تا از بهترین مقصدها که دقیقاً به دردت می‌خورن",
+      subtitle: "بر اساس سن، بودجه، زبانت و رزومه‌ات، بهترین گزینه‌ها رو برات پیدا می‌کنیم.",
+      badge: "شخصی‌سازی شده برای تو",
     },
     {
-      title: "محاسبه دقیق کف تمکن مالی و هزینه‌های واقعی",
-      subtitle: "شفاف‌سازی مخارج زندگی و حداقل مبالغ واریزی قانونی سفارت",
+      title: "حساب‌کتاب دقیق؛ چقدر پول واقعاً لازمه؟",
+      subtitle: "از هزینه‌های زندگی تا پولی که سفارت می‌خواد، همه رو شفاف و بدون سانسور بهت می‌گیم.",
       badge: "شفافیت ۱۰۰٪ مالی",
     },
     {
-      title: "تحلیل بدون تعصب، بدون پورسانت دفاتر مهاجرتی",
-      subtitle: "بدون منافع تجاری و پنهان‌کاری؛ فقط حقیقت پرونده شما",
-      badge: "بی‌طرفی کامل",
+      title: "یه راهنمای بی‌طرف، نه یه وکیل پول‌دوست!",
+      subtitle: "ما نه پورسانت می‌گیریم نه با جایی زدوبند داریم؛ فقط می‌خوایم بهترین مسیر رو بهت نشون بدیم.",
+      badge: "صادق و بی‌طرف",
     },
     {
-      title: "شناسایی ریسک‌های پنهان ریجکتی و راهکارهای قانونی",
-      subtitle: "تشخیص نقاط ضعف پرونده و ارائه چک‌لیست اقدامات جبرانی",
-      badge: "پیشگیری از ریجکتی",
+      title: "گیرهای پرونده‌ات کجاست و چطور حلشون کنی؟",
+      subtitle: "قبل از اینکه ریجکت بشی، نقطه‌ضعف‌های پرونده رو پیدا می‌کنیم و بهت راهکار می‌دیم.",
+      badge: "خداحافظی با ریجکتی",
     },
   ];
 
@@ -172,47 +172,47 @@ export default function LandingPage({
 
   const faqs = [
     {
-      q: "آیا برای شروع ارزیابی، مدرک رسمی زبان (آیلتس، تافل یا گوته) یا پاسپورت لازم است؟",
-      a: "خیر، به هیچ وجه! در مرحله ارزیابی اولیه فقط سطح تقریبی یا نمره تخمینی خود را مشخص می‌کنید. کوچیفای دقیقاً به شما می‌گوید هر مقصد چه نمره‌ای می‌خواهد و برای رساندن زبانتان به سطح مورد نیاز چقدر فرصت دارید.",
+      q: "برای پر کردن فرم، حتماً باید الان آیلتس یا پاسپورت داشته باشم؟",
+      a: "اصلاً و ابداً! تو ارزیابی اولیه فقط کافیه بگی زبانت در چه حده؛ مثلاً در حد مکالمه ساده، متوسط یا خوب. بعداً کوچیفای بهت می‌گه هر کشور دقیقاً چه نمره‌ای می‌خواد و چقدر وقت داری زبانت رو قوی کنی.",
     },
     {
-      q: "اطلاعات من چگونه نگهداری می‌شود و آیا نیاز به ارسال مدارک هویتی یا بانکی است؟",
-      a: "حریم خصوصی شما خط قرمز ماست. کوچیفای هرگز اطلاعات حساسی مانند شماره گذرنامه، کد ملی، اسناد ملکی یا صورت‌حساب بانکی از شما نمی‌خواهد. پرونده شما صرفاً با شماره همراهتان به صورت کاملاً رمزنگاری‌شده و محرمانه ثبت می‌شود.",
+      q: "اطلاعاتم دست کی می‌افته؟ نکنه مدرک شناسایی یا پرینت حساب بخواید؟",
+      a: "خیالت تخت تخت! کوچیفای هیچ نیازی به شماره پاسپورت، کد ملی، سند خونه یا پرینت حسابت نداره. فقط با شماره موبایلت وارد میشی و تمام اطلاعاتت پیش خودت و کاملاً محرمانه ذخیره می‌مونه.",
     },
     {
-      q: "چرا به جای مشاوره‌های گران‌قیمت چند میلیونی به کوچیفای اعتماد کنم؟",
-      a: "دفاتر مهاجرتی سنتی معمولاً کشورهایی را پیشنهاد می‌دهند که با دانشگاه‌ها یا وکلای آن قرارداد کمیسیونی دارند. کوچیفای یک موتور الگوریتمی مستقل و بی‌طرف است که شرایط شما را با قوانین رسمی ۳۰ کشور بدون تعصب تجاری مقایسه می‌کند.",
+      q: "چرا به جای دفاتر و وکلای گرون‌قیمت به کوچیفای اعتماد کنم؟",
+      a: "دفاتر مهاجرتی معمولاً کشوری رو برات نسخه می‌پیچن که خودشون روش پورسانت دارن! ولی کوچیفای یه الگوریتم مستقل و رفیق خودته؛ هیچ نفعی تو هیچ کشوری نداره و فقط دنبال اینه که کدوم مسیر واقعاً به دردت می‌خوره.",
     },
     {
-      q: "هزینه ارزیابی و گزارش نهایی چقدر است و چه مواردی را شامل می‌شود؟",
-      a: "شروع ارزیابی و پر کردن فرم کاملاً در دسترس است. پس از تکمیل، گزارش جامع شامل ۳ مقصد با بالاترین شانس قبولی، کف تمکن مالی رسمی سال ۲۰۲۶، بررسی ریسک‌های پنهان ریجکتی، چک‌لیست گام‌به‌گام و ابزار رزومه‌یار با یک بار پرداخت شفاف فعال می‌شود.",
+      q: "هزینه‌اش چقدره و بعد از پرداخت چی گیرم میاد؟",
+      a: "شروع ارزیابی و پر کردن فرم کاملاً دست خودته. بعد از دیدن خلاصه شرایط، با یه هزینه فوق‌العاده منصفانه، گزارش کامل شامل ۳ تا کشور برتر، خرج و مخارج واقعی ۲۰۲۶، گیرهای پرونده و چک‌لیست قدم‌به‌قدم کارهات باز میشه.",
     },
     {
-      q: "بعد از دریافت ۳ مقصد برتر، چطور باید برای اخذ ویزا اقدام کنم؟",
-      a: "گزارش تحلیلی کوچیفای همراه با چک‌لیست اقدامات ماه به ماه و مانیفست مدارک ارائه می‌شود تا هم خودتان بتوانید مستقیماً اقدام (Apply) کنید و هم در صورت تمایل به وکیل، با چشم کاملاً باز و بدون ریسک کلاهبرداری قرارداد ببندید.",
+      q: "وقتی ۳ تا کشور رو شناختم، خودم می‌تونم کارهاش رو بکنم یا باز باید وکیل بگیرم؟",
+      a: "دقیقاً هدف همینه که خودت آقا و خانم خودت باشی! با نقشه راه و راهنمای گام‌به‌گام کوچیفای می‌تونی خودت مستقیماً اپلای کنی. حتی اگه بعداً خواستی وکیل هم بگیری، دیگه کلاه سرت نمیره چون زیروبم مسیر رو بلدی.",
     },
   ];
 
   // Showcase popular European destinations
   const europeanDestinations = [
     {
-      city: "پاریس و فرانسه",
+      city: "پاریس و شهرهای فرانسه",
       country: "فرانسه",
-      highlights: "ویزای تلنت پاسپورت، قطب فناوری و تحصیل کم‌هزینه",
+      highlights: "پاسپورت تلنت، بازار کار داغ برای استارتاپ‌ها و دانشگاه‌های کم‌هزینه",
       icon: EiffelTowerVector,
       accent: "from-blue-500/20 to-indigo-500/20 border-blue-400/30 text-blue-400",
     },
     {
-      city: "برلین و مونیخ",
+      city: "برلین، مونیخ و فرانکفورت",
       country: "آلمان",
-      highlights: "کارت شانس ۲۰۲۶، بلوکارت اروپا و دانشگاه‌های رایگان",
+      highlights: "کارت شانس ۲۰۲۶، بلوکارت اروپا و دانشگاه‌های تقریباً رایگان",
       icon: BrandenburgGateVector,
       accent: "from-amber-500/20 to-yellow-500/20 border-amber-400/30 text-amber-400",
     },
     {
-      city: "رم و میلان",
+      city: "رم و میلان و تورین",
       country: "ایتالیا",
-      highlights: "بورسیه استانی DSU، هزینه تحصیل فوق‌العاده و تبدیل به کار",
+      highlights: "بورسیه استانی DSU (تقریباً رایگان)، آب‌وهوای عالی و امکان تبدیل به کار",
       icon: ColosseumVector,
       accent: "from-emerald-500/20 to-teal-500/20 border-emerald-400/30 text-emerald-400",
     },
@@ -244,7 +244,7 @@ export default function LandingPage({
           {/* Top Micro-Badge */}
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-bold mb-6 shadow-sm">
             <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            <span>سامانه رسمی تصمیم‌یار مهاجرت | منطبق بر آخرین قوانین ویزای ۲۰۲۶</span>
+            <span>کوچیفای، رفیق شفیق مسیر مهاجرتت | آپدیت با جدیدترین قوانین ۲۰۲۶</span>
           </div>
 
           {/* DYNAMIC TEXT SLIDER (Punchy titles <= 10 words) */}
@@ -286,7 +286,7 @@ export default function LandingPage({
               onClick={onStartAssessment}
               className="w-full sm:w-auto px-9 py-4 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-base shadow-xl shadow-emerald-500/25 flex items-center justify-center gap-3 transition-all duration-200 hover:scale-[1.03] active:scale-[0.98] cursor-pointer"
             >
-              <span>شروع ارزیابی هوشمند و دریافت ۳ مقصد برتر</span>
+              <span>بزن بریم؛ شرایطم رو بسنج و ۳ مقصد برتر رو بهم بگو</span>
               <ArrowLeft className="w-5 h-5 text-slate-950" />
             </button>
 
@@ -296,17 +296,7 @@ export default function LandingPage({
                 className="w-full sm:w-auto px-6 py-4 rounded-2xl bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700/80 font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-xs cursor-pointer"
               >
                 <Globe className="w-4 h-4 text-emerald-400" />
-                <span>کاتالوگ و قوانین ۳۰ کشور</span>
-              </button>
-            )}
-
-            {onOpenResume && (
-              <button
-                onClick={onOpenResume}
-                className="w-full sm:w-auto px-6 py-4 rounded-2xl bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700/80 font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-xs cursor-pointer"
-              >
-                <FileText className="w-4 h-4 text-cyan-400" />
-                <span>رزومه‌یار بین‌المللی ATS</span>
+                <span>دیدن قوانین و کاتالوگ ۳۰ تا کشور</span>
               </button>
             )}
           </div>
@@ -315,15 +305,15 @@ export default function LandingPage({
           <div className="flex flex-wrap items-center justify-center gap-6 sm:gap-10 text-xs text-slate-400 font-medium pt-4 border-t border-slate-800/80">
             <div className="flex items-center gap-1.5">
               <Users className="w-4 h-4 text-emerald-400" />
-              <span>بیش از ۱۲,۰۰۰ ارزیابی تخصصی ثبت‌شده</span>
+              <span>بیش از ۱۲,۰۰۰ ارزیابی واقعی تا الان انجام شده</span>
             </div>
             <div className="flex items-center gap-1.5">
               <Globe className="w-4 h-4 text-teal-400" />
-              <span>تحلیل ۳۰ مقصد مهاجرپذیر (کانادا، اروپا، استرالیا)</span>
+              <span>بررسی ۳۰ تا کشور محبوب (کانادا، آلمان، استرالیا و...)</span>
             </div>
             <div className="flex items-center gap-1.5">
               <Sparkles className="w-4 h-4 text-cyan-400" />
-              <span>۱۰۰٪ الگوریتمی، مستقل و بدون ذی‌نفعی تجاری</span>
+              <span>۱۰۰٪ الگوریتمی، رفاقتی و بدون پورسانت‌بازی دلال‌ها</span>
             </div>
           </div>
         </div>
@@ -340,10 +330,10 @@ export default function LandingPage({
       <section className="max-w-6xl mx-auto px-4 sm:px-6">
         <div className="text-center max-w-xl mx-auto mb-8">
           <span className="text-xs font-extrabold text-teal-400 bg-teal-950/70 border border-teal-800/70 px-3 py-1 rounded-full uppercase">
-            مقصدهای محبوب اروپایی
+            کجاها بیشتر طرفدار داره؟
           </span>
           <h2 className="text-xl sm:text-2xl font-black text-white mt-2">
-            شرایط شما با کدام شهرهای اروپایی سازگارتر است؟
+            شرایط تو با کدوم شهرهای اروپا بیشتر جوره؟
           </h2>
         </div>
 
@@ -370,7 +360,7 @@ export default function LandingPage({
                 </div>
 
                 <div className="mt-5 pt-4 border-t border-slate-800/80 flex items-center justify-between text-xs font-bold text-emerald-400">
-                  <span>بررسی شانس در فرم ارزیابی</span>
+                  <span>ببین چقدر شانس داری</span>
                   <ArrowLeft className="w-4 h-4" />
                 </div>
               </div>
@@ -386,15 +376,13 @@ export default function LandingPage({
         <div className="max-w-6xl mx-auto">
           <div className="text-center max-w-3xl mx-auto mb-14">
             <span className="text-xs font-extrabold text-cyan-400 bg-cyan-950/80 border border-cyan-800/80 px-3.5 py-1 rounded-full uppercase">
-              شفافیت به جای سردرگمی
+              حرف حساب
             </span>
             <h2 className="text-2xl sm:text-4xl font-black text-white mt-3 mb-4">
-              چرا کوچیفای را ساختیم و چگونه به شما کمک می‌کند؟
+              چرا اصلاً کوچیفای رو ساختیم و چطور کمکت می‌کنه؟
             </h2>
             <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-              به جای ماه‌ها جستجوی فرسایشی در گروه‌های مجازی و شنیدن ادعاهای سلیقه‌ای دفاتر سنتی، سن،
-              سوابق تحصیلی، شغلی، سطح زبان و بودجه‌تان را با مقررات رسمی ۳۰ کشور برتر جهان می‌سنجیم تا در
-              کمتر از ۵ دقیقه بهترین مسیر زندگی‌تان را پیدا کنید.
+              خسته نشدی از بس تو گروه‌های تلگرامی و اینستاگرامی دنبال جواب گشتی یا رفتی پیش مشاورهایی که فقط می‌خواستن برات کیس سرهم کنن و پولت رو بگیرن؟ ما سن، تحصیلات، سابقه کار، زبانت و بودجه‌ات رو با قوانین روز ۳۰ تا کشور می‌سنجیم تا تو کمتر از ۵ دقیقه دقیقاً دستت بیاد باید چیکار کنی.
             </p>
           </div>
 
@@ -404,10 +392,9 @@ export default function LandingPage({
               <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mb-4">
                 <Cpu className="w-6 h-6" />
               </div>
-              <h3 className="text-base font-extrabold text-white mb-2">موتور تطبیق الگوریتمی</h3>
+              <h3 className="text-base font-extrabold text-white mb-2">تطبیق هوشمند و دقیق</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                رزومه شما را در ماتریس داده‌ای ۳۰ کشور می‌چرخانیم تا کشورهایی که بیشترین شانس اخذ ویزا را در
-                سال ۲۰۲۶ دارند، بدون خطا مشخص شوند.
+                رزومه‌ات رو می‌ذاریم کنار قوانین رسمی سال ۲۰۲۶ تا اون کشورهایی که واقعاً توشون شانس داری مشخص بشن؛ بدون حدس و گمان و تعصب.
               </p>
             </div>
 
@@ -416,10 +403,9 @@ export default function LandingPage({
               <div className="w-12 h-12 rounded-2xl bg-teal-500/10 border border-teal-500/30 text-teal-400 flex items-center justify-center mb-4">
                 <TrendingUp className="w-6 h-6" />
               </div>
-              <h3 className="text-base font-extrabold text-white mb-2">محاسبه واقعی تمکن مالی</h3>
+              <h3 className="text-base font-extrabold text-white mb-2">حساب‌کتاب پول تا قران آخر</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                کف تمکن مالی رسمی سفارت و هزینه واقعی ۶ تا ۱۲ ماه اول زندگی در مقصد، تفکیک‌شده و با نرخ روز
-                ارز در اختیارتان قرار می‌گیرد.
+                حداقل تمکنی که سفارت می‌خواد و خرج واقعی زندگی ۶ تا ۱۲ ماه اول رو بدون سانسور بهت می‌گیم تا وسط راه لنگ نمونی.
               </p>
             </div>
 
@@ -428,10 +414,9 @@ export default function LandingPage({
               <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 flex items-center justify-center mb-4">
                 <AlertTriangle className="w-6 h-6" />
               </div>
-              <h3 className="text-base font-extrabold text-white mb-2">شناسایی ریسک‌های ریجکتی</h3>
+              <h3 className="text-base font-extrabold text-white mb-2">مچ‌گیری از ریسک‌های ریجکتی</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                گپ تحصیلی، سن حساس، عدم تطابق رشته با شغل و کسری نمره زبان شناسایی شده و راهکار قانونی رفع
-                آن‌ها در گزارش ثبت می‌شود.
+                گپ تحصیلی داری؟ سنت رفته بالا؟ نمره زبانت کمه؟ بهت می‌گیم کجای کارت می‌لنگه و چطور به شکل قانونی دورش بزنی!
               </p>
             </div>
 
@@ -440,10 +425,9 @@ export default function LandingPage({
               <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center mb-4">
                 <Target className="w-6 h-6" />
               </div>
-              <h3 className="text-base font-extrabold text-white mb-2">چک‌لیست مکتوب اقدامات</h3>
+              <h3 className="text-base font-extrabold text-white mb-2">چک‌لیست قدم‌به‌قدم کارها</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                نقشه راه ماه به ماه از آماده‌سازی مدارک و آزمون زبان تا مکاتبه، اخذ پذیرش یا جاب‌آفر و مصاحبه
-                سفارت، گام‌به‌گام ترسیم می‌شود.
+                یه نقشه راه ماه به ماه دستت می‌دیم؛ از ترجمه و لگالایز مدارک گرفته تا ایمیل زدن به اساتید، اپلای و مصاحبه سفارت.
               </p>
             </div>
           </div>
@@ -456,13 +440,13 @@ export default function LandingPage({
       <section className="max-w-6xl mx-auto px-4 sm:px-6">
         <div className="text-center max-w-2xl mx-auto mb-12">
           <span className="text-xs font-extrabold text-amber-400 bg-amber-950/80 border border-amber-800/80 px-3 py-1 rounded-full uppercase tracking-wider">
-            فرآیند ساده و سریع
+            ۳ تا قدم ساده
           </span>
           <h2 className="text-2xl sm:text-3xl font-black text-white mt-3 mb-2">
-            مسیر رسیدن به پرونده مهاجرتی مستند؛ در ۳ گام شفاف
+            از سردرگمی تا نقشه راه روشن؛ فقط تو ۳ قدم
           </h2>
           <p className="text-xs sm:text-sm text-slate-400">
-            بدون فرم‌های اداری پیچیده و بدون فوت وقت، از نقطه ابهام به نقشه راه عملیاتی برسید
+            نه کاغذبازی اداری داریم، نه فرم‌های گیج‌کننده و قلمبه‌سلمبه؛ همه‌چیز رو تر و تمیز برات چیدیم:
           </p>
         </div>
 
@@ -474,16 +458,15 @@ export default function LandingPage({
                 ۱
               </div>
               <h3 className="text-base font-extrabold text-white mb-2">
-                ورود آنی فقط با شماره موبایل
+                ورود سریع با شماره موبایلت
               </h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                پرونده شما در یک چشم‌به‌هم‌زدن با پیامک تایید ایجاد می‌شود؛ بدون نیاز به ثبت‌نام‌های طولانی یا
-                سپردن اطلاعات هویتی و بانکی حساس.
+                یه کد تایید پیامکی برات میاد و پرونده‌ات باز میشه. نه نیازی به اسکن پاسپورت هست، نه هیچ اطلاعات حساسی.
               </p>
             </div>
             <div className="mt-4 pt-4 border-t border-slate-800 flex items-center gap-2 text-[11px] text-amber-400 font-bold">
               <CheckCircle2 className="w-4 h-4" />
-              <span>احراز هویت پیامکی امن و محرمانه</span>
+              <span>کاملاً امن و محرمانه پیش خودمون می‌مونه</span>
             </div>
           </div>
 
@@ -494,16 +477,15 @@ export default function LandingPage({
                 ۲
               </div>
               <h3 className="text-base font-extrabold text-white mb-2">
-                پاسخ به ۷ شاخص کلیدی پرونده
+                جواب دادن به چند تا سوال ساده
               </h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                سن، آخرین مدرک تحصیلی، سوابق شغلی، سطح حدودی زبان و بازه بودجه مالی را مشخص کنید. اگر مدرک
-                زبان ندارید، نمره تخمینی کفایت می‌کند.
+                سنت، مدرکت، سابقه کارت، زبانت و پولی که داری رو مشخص کن. مدرک زبان نداری؟ فدای سرت، حدودی بگو زبانت در چه حده!
               </p>
             </div>
             <div className="mt-4 pt-4 border-t border-slate-800 flex items-center gap-2 text-[11px] text-teal-400 font-bold">
               <Clock className="w-4 h-4" />
-              <span>مدت زمان: حدود ۳ تا ۵ دقیقه</span>
+              <span>کلاً ۳ تا ۵ دقیقه وقتت رو می‌گیره</span>
             </div>
           </div>
 
@@ -514,16 +496,15 @@ export default function LandingPage({
                 ۳
               </div>
               <h3 className="text-base font-extrabold text-white mb-2">
-                تحلیل ۳ مقصد طلایی و گزارش جامع
+                گرفتن ۳ مقصد طلایی و نقشه راه
               </h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                موتور هوشمند تطبیق، سازگارترین کشورها را بر مبنای قوانین ۲۰۲۶ استخراج کرده و شانس ویزا،
-                هزینه‌های واقعی زندگی و چک‌لیست ماه به ماه را تحویل می‌دهد.
+                سیستم بلافاصله بهت می‌گه کدوم ۳ کشور برات مثل موم نرمه، چقدر پول می‌خوان و چه مراحلی رو باید یکی‌یکی بری جلو.
               </p>
             </div>
             <div className="mt-4 pt-4 border-t border-slate-800 flex items-center gap-2 text-[11px] text-emerald-400 font-bold">
               <Sparkles className="w-4 h-4" />
-              <span>ارائه گزارش مکتوب، شفاف و قابل استناد</span>
+              <span>پرونده کامل، شفاف و به زبون خودمون</span>
             </div>
           </div>
         </div>
@@ -536,13 +517,13 @@ export default function LandingPage({
         <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 text-white rounded-3xl p-6 sm:p-10 border border-slate-800 shadow-2xl">
           <div className="max-w-2xl mb-8">
             <span className="text-xs font-extrabold text-rose-400 bg-rose-950/80 border border-rose-800/80 px-3 py-1 rounded-full uppercase">
-              چرا کوچیفای متفاوت است؟
+              مقایسه رفاقتی
             </span>
             <h2 className="text-xl sm:text-3xl font-black mt-3 mb-2">
-              پایان عصر مشاوره‌های سلیقه‌ای و ادعاهای واهی مهاجرتی
+              چرا با کوچیفای جلو بری، نه روش‌های سنتی و دفاتر تجاری؟
             </h2>
             <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">
-              تفاوت رویکرد علمی داده‌محور با دفاتر واسطه‌ای که به نفع خودشان مشاوره می‌دهند:
+              بیا رو راست باشیم؛ فرق یه سیستم هوشمند و بی‌طرف با کسایی که دنبال جیب خودشونن ایناست:
             </p>
           </div>
 
@@ -551,34 +532,31 @@ export default function LandingPage({
             <div className="bg-rose-950/20 p-6 rounded-2xl border border-rose-800/40">
               <h4 className="text-sm font-bold text-rose-400 mb-4 flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4" />
-                <span>روش‌های سنتی و دفاتر تجاری:</span>
+                <span>روش‌های سنتی و دلال‌های مهاجرت:</span>
               </h4>
               <ul className="space-y-3 text-xs text-rose-200/80 leading-relaxed">
                 <li className="flex items-start gap-2">
                   <span className="text-rose-400 font-bold">✕</span>
                   <span>
-                    اصرار بر کشورهایی که خود دفتر در آن نماینده دارد یا کمیسیون سودآور دریافت می‌کند (نه
-                    لزوماً بهترین مقصد شما).
+                    کشوری رو بهت پیشنهاد می‌دن که خودشون از دانشگاه یا وکیلش کمیسیون چرب می‌گیرن، نه اونی که به نفع توئه!
                   </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-rose-400 font-bold">✕</span>
                   <span>
-                    ادعاهای وسوسه‌انگیز و غیرواقعی «ویزای ۱۰۰٪ تضمینی» و پنهان‌سازی شرایط سفت‌وسخت ریجکتی
-                    سفارت‌ها.
+                    حرف‌های قشنگ مثل "ویزای تضمینی ۱۰۰٪" که همه‌اش سراب و خالی‌بندیه؛ قانون ویزا با هیچ‌کس شوخی نداره.
                   </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-rose-400 font-bold">✕</span>
                   <span>
-                    دریافت هزینه‌های سنگین چند میلیونی برای یک جلسه مشاوره شفاهی و کلی، بدون ارائه برنامه مکتوب و
-                    مسئولانه.
+                    چند میلیون پول می‌گیرن فقط واسه یه ربع گپ زدن، تهش هم هیچ برنامه مکتوبی دستت نمی‌دن.
                   </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-rose-400 font-bold">✕</span>
                   <span>
-                    اطلاعات تاریخ‌گذشته و بی‌اطلاعی از دگرگونی‌های سخت‌گیرانه سال ۲۰۲۶ در پذیرش مهاجران.
+                    از تغییرات و سخت‌گیری‌های جدید سال ۲۰۲۶ سفارت‌ها خبر ندارن یا عمداً بهت نمی‌گن تا قرارداد ببندی!
                   </span>
                 </li>
               </ul>
@@ -588,32 +566,31 @@ export default function LandingPage({
             <div className="bg-emerald-950/30 p-6 rounded-2xl border border-emerald-500/40">
               <h4 className="text-sm font-bold text-emerald-400 mb-4 flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4" />
-                <span>سامانه تصمیم‌یار هوشمند کوچیفای:</span>
+                <span>کوچیفای، رفیق هوشمندت:</span>
               </h4>
               <ul className="space-y-3 text-xs text-emerald-100 leading-relaxed">
                 <li className="flex items-start gap-2">
                   <span className="text-emerald-400 font-bold">✓</span>
                   <span>
-                    مقایسه بی‌طرفانه و همزمان بین ۳۰ کشور دنیا فقط بر اساس تطابق رزومه با آیین‌نامه‌های رسمی
-                    سفارت‌ها.
+                    بی‌طرفی مطلق؛ ما فقط به تطابق رزومه‌ات با قوانین رسمی سفارت‌ها نگاه می‌کنیم، نه پورسانت کسی.
                   </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-emerald-400 font-bold">✓</span>
                   <span>
-                    شفاف‌سازی شجاعانه نقاط ضعف پرونده، ریسک‌های پنهان ریجکتی و کف تمکن مالی بدون سانسور.
+                    رک و پوست‌کنده نقاط ضعف پرونده، ریسک‌های ریجکتی و کف پولی که باید تو جیبت باشه رو بهت می‌گیم.
                   </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-emerald-400 font-bold">✓</span>
                   <span>
-                    دسترسی به برنامه ماه به ماه اقدامات، چک‌لیست جمع‌آوری مدارک و ابزار رزومه‌یار بین‌المللی ATS.
+                    یه نقشه راه ماه به ماه و چک‌لیست جمع‌آوری مدارک می‌گیری که بتونی خودت با خیال راحت اپلای کنی.
                   </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-emerald-400 font-bold">✓</span>
                   <span>
-                    گزارش تحلیلی کامل با یک بار پرداخت کاملاً منصفانه و شفاف بدون تعهدات میلیونی اجباری.
+                    هزینه‌ای که می‌دی در حد یه پیتزاست، اما جلوی صدها میلیون تومن خسارت و ریجکت شدن رو می‌گیره.
                   </span>
                 </li>
               </ul>
@@ -627,9 +604,9 @@ export default function LandingPage({
       {/* ========================================================================= */}
       <section className="max-w-4xl mx-auto px-4 sm:px-6">
         <div className="text-center mb-8">
-          <h2 className="text-2xl font-black text-white mb-2">پرسش‌های پرتکرار متقاضیان</h2>
+          <h2 className="text-2xl font-black text-white mb-2">چند تا سوال که احتمالاً الان تو ذهنته</h2>
           <p className="text-xs sm:text-sm text-slate-400">
-            پاسخ شفاف به مهم‌ترین دغدغه‌هایی که پیش از شروع ارزیابی ممکن است داشته باشید
+            خیلی رفاقتی و بدون تعارف جواب دغدغه‌هات رو دادیم:
           </p>
         </div>
 
@@ -675,18 +652,17 @@ export default function LandingPage({
 
           <div className="relative z-10">
             <h2 className="text-2xl sm:text-4xl font-black mb-4">
-              آینده شما مهم‌تر از آن است که به حدس و گمان سپرده شود!
+              حیفِ آینده و انگیزه‌ات نیست که با حدس و گمان هدر بره؟
             </h2>
             <p className="text-xs sm:text-sm text-emerald-100 max-w-xl mx-auto leading-relaxed mb-8">
-              همین حالا در کمتر از ۵ دقیقه شرایط خود را بسنجید و مطمئن‌ترین نقشه راه مهاجرتی را بر مبنای
-              قوانین ۲۰۲۶ تحویل بگیرید.
+              همین الان تو ۵ دقیقه شرایطت رو بسنج تا ببینی کدوم کشورها درهاشون به روت بازه و چطوری باید برسی بهشون.
             </p>
 
             <button
               onClick={onStartAssessment}
               className="px-9 py-4 bg-white hover:bg-emerald-50 text-emerald-950 rounded-2xl font-black text-sm sm:text-base shadow-xl transition-all hover:scale-105 active:scale-95 inline-flex items-center gap-2.5 cursor-pointer"
             >
-              <span>شروع ارزیابی هوشمند و دریافت نقشه راه</span>
+              <span>بزن بریم؛ شروع ارزیابی ۵ دقیقه‌ای</span>
               <ArrowLeft className="w-5 h-5 text-emerald-700" />
             </button>
           </div>

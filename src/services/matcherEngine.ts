@@ -500,7 +500,7 @@ function evaluateSingleRoute(route: RouteDefinition, profile: UserAssessmentProf
 
   // Personalized "Why this option for you?"
   const whyReasons: string[] = [];
-  if (route.routeType === "study") {
+  if (route.routeType === "study" || route.routeType === "research_phd") {
     whyReasons.push(`تناسب با مقطع تحصیلی هدف شما (${translateDegree(profile.targetDegreeLevel)}) و رشته تحصیلی ${profile.fieldOfStudy}.`);
     if (cost.approximateTotalUsd < 20000) {
       whyReasons.push("شهریه و هزینه‌های سال اول با توجه به مدل مالی کشور در سطحی معقول قرار دارد.");
@@ -513,32 +513,222 @@ function evaluateSingleRoute(route: RouteDefinition, profile: UserAssessmentProf
   }
   const whyThisOptionFa = whyReasons.join(" همچنین ");
 
-  // Next Action Steps (3 to 7 actionable steps)
-  const nextActions: NextActionStep[] = [
+function getCountrySpecificWorkLinks(countryCode: string) {
+  const links = [
+    { labelFa: "LinkedIn Jobs (بین‌المللی)", url: "https://www.linkedin.com/jobs/" },
+    { labelFa: "Indeed (کاریابی جهانی)", url: "https://www.indeed.com/" },
+    { labelFa: "Glassdoor (بررسی حقوق و آگهی)", url: "https://www.glassdoor.com/Job/" },
+  ];
+
+  if (countryCode === "CA") {
+    links.unshift({ labelFa: "پرتال رسمی Job Bank کانادا (دارای LMIA)", url: "https://www.jobbank.gc.ca/" });
+  } else if (countryCode === "DE") {
+    links.unshift(
+      { labelFa: "پرتال رسمی اداره کار فدرال آلمان (BA Jobsuche)", url: "https://www.arbeitsagentur.de/jobsuche/" },
+      { labelFa: "سایت StepStone آلمان (انگلیسی‌زبان)", url: "https://www.stepstone.de/en" }
+    );
+  } else if (countryCode === "AU") {
+    links.unshift(
+      { labelFa: "پرتال دولتی Workforce Australia", url: "https://www.workforceaustralia.gov.au/individuals/jobs/" },
+      { labelFa: "سایت SEEK استرالیا", url: "https://www.seek.com.au/" }
+    );
+  } else if (countryCode === "GB") {
+    links.unshift({ labelFa: "پرتال رسمی Find a Job بریتانیا (GOV.UK)", url: "https://www.gov.uk/find-a-job" });
+  } else if (countryCode === "NL") {
+    links.unshift({ labelFa: "پرتال دولتی Werk.nl هلند", url: "https://www.werk.nl/" });
+  } else if (countryCode === "SE") {
+    links.unshift({ labelFa: "سایت رسمی آژانس کاریابی سوئد (Platsbanken)", url: "https://arbetsformedlingen.se/platsbanken/" });
+  } else if (countryCode === "DK") {
+    links.unshift({ labelFa: "پرتال متخصصان خارجی دانمارک (Workindenmark)", url: "https://www.workindenmark.dk/" });
+  } else if (countryCode === "FI") {
+    links.unshift({ labelFa: "پلتفرم رسمی بازار کار فنلاند (Job Market Finland)", url: "https://tyomarkkinatori.fi/en" });
+  } else {
+    links.push({ labelFa: "پرتال رسمی کاریابی اتحادیه اروپا (EURES)", url: "https://eures.europa.eu/" });
+  }
+
+  return links;
+}
+
+function getCountrySpecificStudyLinks(countryCode: string) {
+  const links = [
+    { labelFa: "پرتال دانشگاه‌های اروپایی (Study in Europe)", url: "https://studyineurope.org/" },
+    { labelFa: "جستجوی مقاطع کارشناسی و ارشد (Mastersportal)", url: "https://www.mastersportal.com/" },
+  ];
+
+  if (countryCode === "DE") {
+    links.unshift(
+      { labelFa: "سامانه رسمی بورسیه و دانشگاه‌های آلمان (DAAD)", url: "https://www.daad.de/en/studying-in-germany/" },
+      { labelFa: "پرتال ارزیابی و پذیرش مرکزی یونی‌اسیست (Uni-Assist)", url: "https://www.uni-assist.de/" }
+    );
+  } else if (countryCode === "FR") {
+    links.unshift({ labelFa: "پرتال رسمی کامپوس فرانس (Campus France)", url: "https://www.campusfrance.org/en" });
+  } else if (countryCode === "IT") {
+    links.unshift({ labelFa: "سامانه رسمی دانشجویان بین‌المللی ایتالیا (Universitaly)", url: "https://www.universitaly.it/" });
+  } else if (countryCode === "CA") {
+    links.unshift({ labelFa: "فهرست موسسات آموزشی مجاز کانادا (DLI List)", url: "https://www.canada.ca/en/immigration-refugees-citizenship/services/study-canada/study-permit/prepare/designated-learning-institutions-list.html" });
+  }
+
+  return links;
+}
+
+function buildNextActionsForRoute(
+  route: RouteDefinition,
+  profile: UserAssessmentProfile,
+  cost: any,
+  languageGapStatus: string
+): NextActionStep[] {
+  const isWorkRoute = route.routeType === "work_job_offer" || route.routeType === "skilled_pr" || route.routeType === "job_seeker";
+  const isStudyRoute = route.routeType === "study" || route.routeType === "research_phd";
+
+  if (isWorkRoute) {
+    return [
+      {
+        id: "act_work_1",
+        titleFa: "آزادسازی، ترجمه رسمی و معادل‌سازی مدرک تحصیلی و سوابق (ECA / ZAB / Anabin)",
+        descriptionFa: "ترجمه رسمی دانشنامه، ریزنمرات و گواهی سوابق کاری و بیمه با مهرهای دادگستری و امور خارجه (لگالایز)، و ثبت درخواست معادل‌سازی مدرک در سازمان رسمی کشور مقصد (نظیر WES کانادا، ZAB آلمان، یا ارزیابی مهارت وت‌اسس/کامپیوتر استرالیا).",
+        responsibleParty: "user",
+        priority: "high",
+        estimatedCostFa: "حدود ۴ تا ۸ میلیون تومان + عوارض ارزیاب رسمی",
+        deadlineFa: "ظرف ۳۰ تا ۴۵ روز آینده",
+        outputDocumentFa: "پلمپ ترجمه رسمی دادگستری و گزارش مثبت تطبیق مدرک (ECA Report)"
+      },
+      {
+        id: "act_work_2",
+        titleFa: "ساخت رزومه بین‌المللی هماهنگ با ATS و بهینه‌سازی پروفایل لینکدین",
+        descriptionFa: "نگارش رزومه استاندارد تک‌ستونه به زبان انگلیسی بدون اطلاعات اضافه، درج کلمات کلیدی شرح شغل‌های خارجی جهت عبور موفق از فیلترهای نرم‌افزارهای غربالگری (ATS)، و تکمیل بخش‌های تجربیات، مهارت‌ها و فعال‌سازی گزینه Open to Work در لینکدین.",
+        responsibleParty: "user",
+        priority: "high",
+        estimatedCostFa: "رایگان / اقدام شخصی",
+        deadlineFa: "ظرف ۱۵ تا ۲۰ روز آینده",
+        outputDocumentFa: "فایل PDF رزومه استاندارد بین‌المللی + پروفایل لینکدین با رتبه All-Star",
+        links: [
+          { labelFa: "پروفایل و شبکه کاریابی لینکدین (LinkedIn)", url: "https://www.linkedin.com/" }
+        ]
+      },
+      {
+        id: "act_work_3",
+        titleFa: "ثبت‌نام در پرتال‌های کاریابی بین‌المللی، جستجوی جاب‌آفر و ارسال کاورلتر سفارشی",
+        descriptionFa: "عضویت در پرتال‌های رسمی استخدامی کشور مقصد و موتورهای کاریابی جهانی، تنظیم هشدار آگهی‌های اسپانسر ویزا (Visa Sponsorship / LMIA / Blue Card)، و ارسال روزانه حداقل ۳ تا ۵ رزومه همراه با کاورلتر (Cover Letter) شخصی‌سازی‌شده برای هر موقعیت شغلی.",
+        responsibleParty: "user",
+        priority: "high",
+        estimatedCostFa: "رایگان",
+        deadlineFa: "روزانه و پیوسته (ظرف ۶۰ تا ۱۲۰ روز)",
+        outputDocumentFa: "ارسال حداقل ۵۰ تا ۱۰۰ اپلیکیشن هدفمند شغلی و دریافت دعوت‌نامه‌های مصاحبه اولیه",
+        links: getCountrySpecificWorkLinks(route.countryCode)
+      },
+      {
+        id: "act_work_4",
+        titleFa: "آمادگی و موفقیت در مصاحبه‌های استخدامی با کارفرما و عقد قرارداد کاری (Job Offer)",
+        descriptionFa: "شبیه‌سازی و تمرین مصاحبه‌های منابع انسانی (HR Screen) و مصاحبه‌های فنی تخصصی به زبان انگلیسی، پاسخ‌دهی به متد STAR برای سوالات رفتاری، مذاکره بر سر حداقل حقوق مصوب اداره کار مقصد، و در نهایت اخذ قرارداد کاری رسمی امضاشده (Employment Contract).",
+        responsibleParty: "employer",
+        priority: "high",
+        estimatedCostFa: "رایگان",
+        deadlineFa: "ظرف ۹۰ تا ۱۸۰ روز آینده",
+        outputDocumentFa: "قرارداد رسمی استخدام (Signed Job Offer) و نامه تاییدیه اسپانسرشیپ ویزا"
+      },
+      {
+        id: "act_work_5",
+        titleFa: "تثبیت تمکن مالی پشتیبان، گواهی عدم سوءپیشینه و مدارک تکمیلی",
+        descriptionFa: `فراهم‌آوری مبلغ مصوب (${cost.officialLivingFundFa}) در حساب بانکی معتبر، ترجمه گواهی عدم سوءپیشینه و تهیه بیمه مسافرتی/کاری معتبر برای ورود به کشور مقصد.`,
+        responsibleParty: "user",
+        priority: "high",
+        estimatedCostFa: cost.officialLivingFundFa,
+        deadlineFa: "حداقل ۳۰ روز قبل از مراجعه به سفارت",
+        outputDocumentFa: "گواهی تمکن بانکی لاتین و گواهی عدم سوءپیشینه رسمی"
+      },
+      {
+        id: "act_work_6",
+        titleFa: "رزرو وقت سفارت/کارگزاری، بیومتریک و اخذ استیکر ویزای کار",
+        descriptionFa: "ثبت نوبت در کارگزاری رسمی سفارت (VFS / Visametric / TLScontact)، تکمیل فرم آنلاین ویزای کار، تحویل قرارداد کاری و مدارک معادل‌سازی، انجام انگشت‌نگاری و تحویل پاسپورت حاوی ویزای کاری.",
+        responsibleParty: "official_body",
+        priority: "high",
+        estimatedCostFa: "حدود ۱۰۰ تا ۲۵۰ یورو/دلار هزینه بررسی ویزا در سفارت",
+        deadlineFa: "متناسب با وقت‌های خالی سفارت",
+        outputDocumentFa: "برچسب ویزای رسمی کار در پاسپورت (Work Visa Stamp)"
+      }
+    ];
+  }
+
+  if (isStudyRoute) {
+    return [
+      {
+        id: "act_study_1",
+        titleFa: "آزادسازی دانشنامه، ترجمه رسمی و لگالایز (تایید دادگستری، امور خارجه و سفارت)",
+        descriptionFa: "لغو تعهد آموزش رایگان و تسویه‌حساب با دانشگاه، دریافت اصل دانشنامه و ریزنمرات رسمی، ترجمه رسمی به زبان انگلیسی یا زبان مقصد، و اخذ مهرهای تاییدیه دادگستری، وزارت امور خارجه و در صورت نیاز لگالایز سفارت (مانند تاییدات ویزامتریک آلمان یا سفارت ایتالیا).",
+        responsibleParty: "user",
+        priority: "high",
+        estimatedCostFa: "حدود ۴ تا ۸ میلیون تومان",
+        deadlineFa: "ظرف ۳۰ تا ۴۵ روز آینده",
+        outputDocumentFa: "مدارک پلمپ‌شده با مهرهای رسمی و تاییدیه لگالایز"
+      },
+      {
+        id: "act_study_2",
+        titleFa: "نگارش رزومه آکادمیک (Academic CV)، انگیزه‌نامه (SOP) و توصیه‌نامه‌ها (LOR)",
+        descriptionFa: "نوشتن انگیزه‌نامه شخصی‌سازی‌شده و مستدل (Statement of Purpose / Motivation Letter) با توجیه منطقی گپ تحصیلی و رشته انتخابی، دریافت ۲ تا ۳ توصیه‌نامه از اساتید با سربرگ و ایمیل دانشگاهی، و آماده‌سازی پروپوزال، سمپل رایتینگ یا مقالات علمی (در صورت وجود برای مقاطع ارشد پژوهش‌محور یا دکترا).",
+        responsibleParty: "user",
+        priority: "high",
+        estimatedCostFa: "رایگان / اقدام شخصی",
+        deadlineFa: "ظرف ۳۰ روز آینده",
+        outputDocumentFa: "پکیج کامل مدارک متنی اپلای (SOP، CV، توصیه‌نامه‌ها و پروپوزال)"
+      },
+      {
+        id: "act_study_3",
+        titleFa: "انتخاب رشته‌ها، مکاتبه با اساتید (Cold Emailing) و اپلای رسمی در دانشگاه‌ها",
+        descriptionFa: "جست‌وجوی پروگرم‌های متناسب در پرتال‌های رسمی دانشگاهی، ارسال ایمیل‌های حرفه‌ای و هدفمند به اساتید راهنما (Supervisors) برای مقاطع تز‌محور/دکترا جهت دریافت فاند و بورسیه، و در نهایت ثبت اپلیکیشن در پرتال رسمی دانشگاه یا سامانه‌های مرکزی پذیرش (نظیر Uni-assist آلمان یا Campus France).",
+        responsibleParty: "university",
+        priority: "high",
+        estimatedCostFa: "حدود ۵۰ تا ۱۵۰ یورو/دلار Application Fee دانشگاه",
+        deadlineFa: "ظرف ۶۰ تا ۹۰ روز (قبل از ددلاین دانشگاه‌ها)",
+        outputDocumentFa: "رسید ثبت اپلیکیشن و پرداخت اپلیکیشن فی دپارتمان",
+        links: getCountrySpecificStudyLinks(route.countryCode)
+      },
+      {
+        id: "act_study_4",
+        titleFa: "شرکت در آزمون زبان استاندارد رسمی (آیلتس، تافل، PTE یا زبان مقصد)",
+        descriptionFa: `کسب نمره هدف در آزمون بین‌المللی متناسب با حدنصاب دپارتمان (${route.practicalLanguageTargetFa}) و دریافت کارنامه رسمی جهت بارگذاری در پرتال دانشگاه و ارائه به سفارت.`,
+        responsibleParty: "user",
+        priority: languageGapStatus === "satisfied" ? "medium" : "high",
+        estimatedCostFa: "حدود ۲۸۰ دلار (هزینه سنتر آزمون)",
+        deadlineFa: "ظرف ۹۰ روز آینده",
+        outputDocumentFa: "کارنامه رسمی آزمون بین‌المللی زبان (TRF)"
+      },
+      {
+        id: "act_study_5",
+        titleFa: "اخذ پذیرش رسمی و تامین تمکن مالی (حساب مسدود / فاند / اسپانسر)",
+        descriptionFa: `دریافت نامه پذیرش قطعی (Admission Offer)، افتتاح حساب مسدود بانکی (Blocked Account / Sperrkonto مانند Fintiba/Expatrio برای آلمان با مبلغ مصوب ۱۱,۹۰۴ یورو، یا حساب بانکی معتبر با مبلغ ${cost.officialLivingFundFa}) و آماده‌سازی اسناد حامی مالی و منبع وجوه.`,
+        responsibleParty: "user",
+        priority: "high",
+        estimatedCostFa: cost.officialLivingFundFa,
+        deadlineFa: "بلافاصله پس از دریافت پذیرش دانشگاه",
+        outputDocumentFa: "نامه پذیرش قطعی دانشگاه + گواهی حساب مسدود یا تمکن بانکی لاتین"
+      },
+      {
+        id: "act_study_6",
+        titleFa: "رزرو وقت سفارت/کارگزاری، بیمه دانشجویی و مصاحبه ویزا",
+        descriptionFa: "ثبت نوبت در کارگزاری رسمی سفارت (Visametric / VFS Global)، تهیه بیمه درمانی دانشجویی معتبر، مرتب‌سازی فیزیکی مدارک طبق چک‌لیست سفارت و شرکت در مصاحبه ویزای دانشجویی.",
+        responsibleParty: "official_body",
+        priority: "high",
+        estimatedCostFa: "حدود ۷۵ تا ۱۶۰ یورو هزینه پرونده ویزای دانشجویی",
+        deadlineFa: "حداقل ۲ تا ۳ ماه پیش از شروع ترم تحصیلی",
+        outputDocumentFa: "استیکر ویزای دانشجویی در پاسپورت (Student Visa)"
+      }
+    ];
+  }
+
+  // Fallback for investment / nomad / general
+  return [
     {
-      id: "act_1",
-      titleFa: "آزادسازی و ترجمه رسمی مدارک تحصیلی و ریزنمرات",
-      descriptionFa: "ترجمه رسمی ریزنمرات و دانشنامه دانشگاهی با مهرهای دادگستری و امور خارجه جهت بارگذاری در سامانه‌های ارزیابی.",
+      id: "act_gen_1",
+      titleFa: "آزادسازی و ترجمه رسمی مدارک هویتی، شغلی و تمکن مالی",
+      descriptionFa: "ترجمه رسمی ریزنمرات، اسناد ملکی و گواهی‌های شغلی با مهرهای دادگستری و امور خارجه جهت بارگذاری در سامانه‌های ارزیابی.",
       responsibleParty: "user",
       priority: "high",
-      estimatedCostFa: "حدود ۳ تا ۶ میلیون تومان",
+      estimatedCostFa: "حدود ۴ تا ۷ میلیون تومان",
       deadlineFa: "ظرف ۳۰ روز آینده",
       outputDocumentFa: "پلمپ ترجمه رسمی دادگستری"
     },
     {
-      id: "act_2",
-      titleFa: route.routeType === "study" ? "اخذ پذیرش رسمی دانشگاه (Admission Letter)" : "ارزیابی مهارت شغلی / معادل‌سازی مدرک (ECA/Skill Assessment)",
-      descriptionFa: route.routeType === "study"
-        ? "ارسال اپلیکیشن به ۳ تا ۵ دپارتمان متناسب با رزومه و اخذ تأییدیه رسمی پذیرش."
-        : "ارسال سوابق تحصیلی و کاری به نهاد ارزیاب رسمی کشور مقصد جهت دریافت گواهی تطبیق شغلی.",
-      responsibleParty: route.routeType === "study" ? "university" : "official_body",
-      priority: "high",
-      estimatedCostFa: route.routeType === "study" ? "۱۰۰ تا ۲۵۰ دلار Application Fee" : "۵۰۰ تا ۱٬۲۰۰ دلار هزینه ارزیابی مهارت",
-      deadlineFa: "ظرف ۶۰ تا ۹۰ روز آینده",
-      outputDocumentFa: route.routeType === "study" ? "نامه پذیرش قطعی / فرم CoE یا I-20" : "نامه مثبت ارزیابی مهارت"
-    },
-    {
-      id: "act_3",
+      id: "act_gen_2",
       titleFa: "تثبیت و دوره نگهداری تمکن مالی در حساب بانکی",
       descriptionFa: `فراهم‌آوری مبلغ مصوب (${cost.officialLivingFundFa}) در حساب بانکی معتبر با منبع وجوه روشن و قابل ردیابی (سند ملکی یا شغلی).`,
       responsibleParty: "user",
@@ -548,16 +738,30 @@ function evaluateSingleRoute(route: RouteDefinition, profile: UserAssessmentProf
       outputDocumentFa: "گواهی تمکن بانکی لاتین و گردش حساب"
     },
     {
-      id: "act_4",
-      titleFa: "شرکت در آزمون زبان رسمی استاندارد",
-      descriptionFa: `کسب نمره هدف در آزمون آیلتس آکادمیک/جنرال، تافل یا PTE جهت احراز شرط قطعی ویزا (${route.practicalLanguageTargetFa}).`,
+      id: "act_gen_3",
+      titleFa: "احراز مدرک زبان استاندارد متناسب با مسیر قانونی",
+      descriptionFa: `کسب نمره هدف در آزمون آیلتس، تافل یا زبان محلی جهت احراز شرط قطعی ویزا (${route.practicalLanguageTargetFa}).`,
       responsibleParty: "user",
       priority: languageGapStatus === "satisfied" ? "medium" : "high",
       estimatedCostFa: "حدود ۲۸۰ دلار (هزینه ثبت‌نام سنتر)",
       deadlineFa: "ظرف ۹۰ روز آینده",
       outputDocumentFa: "کارنامه رسمی آزمون (TRF)"
+    },
+    {
+      id: "act_gen_4",
+      titleFa: "رزرو وقت سفارت/کارگزاری، بیومتریک و اخذ ویزا",
+      descriptionFa: "ثبت وقت سفارت در کارگزاری رسمی، تحویل اصل مدارک مالی و هویتی و پاسخ به مصاحبه آفیسر.",
+      responsibleParty: "official_body",
+      priority: "high",
+      estimatedCostFa: "حدود ۱۰۰ تا ۲۰۰ یورو هزینه بررسی ویزا",
+      deadlineFa: "متناسب با وقت‌های خالی سفارت",
+      outputDocumentFa: "استیکر ویزای رسمی در پاسپورت"
     }
   ];
+}
+
+  // Next Action Steps tailored to Work vs Study
+  const nextActions: NextActionStep[] = buildNextActionsForRoute(route, profile, cost, languageGapStatus);
 
   // Resolve citations
   const citations = route.citationSourceIds

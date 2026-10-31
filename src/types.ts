@@ -123,6 +123,12 @@ export interface EvaluatedCondition {
   remedyActionFa?: string;
 }
 
+export interface ActionLinkItem {
+  labelFa: string;
+  url: string;
+  isSpecialPortal?: boolean;
+}
+
 export interface NextActionStep {
   id: string;
   titleFa: string;
@@ -133,6 +139,7 @@ export interface NextActionStep {
   deadlineFa: string;
   outputDocumentFa: string;
   sourceUrl?: string;
+  links?: ActionLinkItem[];
 }
 
 export interface DocumentItem {

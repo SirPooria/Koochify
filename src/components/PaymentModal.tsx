@@ -164,7 +164,7 @@ export default function PaymentModal({
             </div>
             <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-200/60">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>بهینه‌ساز هوشمند رزومه بین‌المللی (ATS) برای جاب‌آفر</span>
+              <span>تحلیل هوشمند ریسک‌های ریجکتی و ارزیابی شانس قبولی</span>
             </div>
             <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-200/60">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />

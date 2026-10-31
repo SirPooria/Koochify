@@ -1123,7 +1123,7 @@ export default function ResultsDashboard({
                   <span>تخفیف ویژه راه‌اندازی ۲۰۲۶</span>
                 </div>
                 <h4 className="text-xs sm:text-sm font-black text-white leading-tight">
-                  باز کردن کامل پرونده مهاجرتی ۳ کشور + رزومه‌ساز ATS
+                  باز کردن کامل پرونده مهاجرتی ۳ کشور + نقشه راه ۲۰۲۶
                 </h4>
                 <div className="flex items-center gap-2 mt-1">
                   <span className="text-emerald-400 font-black text-sm sm:text-base font-mono">

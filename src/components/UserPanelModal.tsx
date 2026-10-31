@@ -41,6 +41,7 @@ interface UserPanelModalProps {
   onLoadAssessment: (profile: UserAssessmentProfile, results: RecommendationSummary) => void;
   currentProfile?: UserAssessmentProfile;
   currentResults?: RecommendationSummary | null;
+  isSavedToCloud?: boolean;
   onAssessmentSaved?: () => void;
   onOpenPayment?: () => void;
 }
@@ -53,6 +54,7 @@ export default function UserPanelModal({
   onLoadAssessment,
   currentProfile,
   currentResults,
+  isSavedToCloud,
   onAssessmentSaved,
   onOpenPayment
 }: UserPanelModalProps) {
@@ -63,6 +65,7 @@ export default function UserPanelModal({
   const [newName, setNewName] = useState(user.fullName || "");
   const [isSavingName, setIsSavingName] = useState(false);
   const [isSavingCurrent, setIsSavingCurrent] = useState(false);
+  const [hasSavedLocally, setHasSavedLocally] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
   useEffect(() => {
@@ -70,6 +73,7 @@ export default function UserPanelModal({
       loadAssessments();
       setNewName(user.fullName || "");
       setStatusMessage(null);
+      setHasSavedLocally(false);
     }
   }, [isOpen, user]);
 
@@ -158,6 +162,9 @@ export default function UserPanelModal({
       return isoString;
     }
   };
+
+  const isAlreadySaved = Boolean(isSavedToCloud) || hasSavedLocally || assessments.length > 0;
+  const showQuickSaveBanner = !isLoading && Boolean(currentResults) && !isAlreadySaved;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-fade-in" dir="rtl">
@@ -273,8 +280,8 @@ export default function UserPanelModal({
 
         {/* Content Body */}
         <div className="p-6 overflow-y-auto space-y-6 flex-1">
-          {/* Quick save banner if current unsaved assessment exists */}
-          {currentResults && (
+          {/* Quick save banner only if current unsaved assessment exists */}
+          {showQuickSaveBanner && (
             <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-cyan-50 p-4 rounded-2xl border border-emerald-200 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
