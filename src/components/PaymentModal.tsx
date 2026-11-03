@@ -118,7 +118,7 @@ export default function PaymentModal({
             <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-amber-950">
               <div className="flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                <span>برای اتصال اشتراک به حسابتان، لطفاً ابتدا با شماره همراه وارد شوید.</span>
+                <span>برای دسترسی کامل به پرونده، لطفاً ابتدا با شماره همراه وارد شوید.</span>
               </div>
               <button
                 type="button"

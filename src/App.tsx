@@ -325,9 +325,10 @@ export default function App() {
       const existingList = await fetchUserAssessments();
       if (existingList && existingList.length > 0) {
         const confirmNew = window.confirm(
-          "شما در حال حاضر یک پرونده ارزیابی در پنل کاربری خود دارید.\n" +
-          "طبق قوانین سامانه، هر پرداخت برای یک ارزیابی است. برای انجام ارزیابی جدید، باید پرونده قبلی حذف شده و هزینه ارزیابی مجدداً پرداخت گردد.\n\n" +
-          "آیا مایلید پرونده قبلی حذف شود و فرم ارزیابی جدید را آغاز فرمایید؟"
+          "شما در حال حاضر یک پرونده ارزیابی فعال دارید.\n\n" +
+          "هر کاربر در کوچیفای فقط یک پرونده فعال دارد و هزینه پرداختی برای همان ارزیابی است.\n" +
+          "اگر می‌خواهید پرونده جدیدی ثبت کنید، پرونده قبلی حذف شده و باید هزینه ارزیابی جدید پرداخت شود.\n\n" +
+          "آیا مایل به حذف پرونده قبلی و شروع ارزیابی جدید هستید؟"
         );
         if (confirmNew) {
           for (const item of existingList) {
@@ -719,11 +720,11 @@ export default function App() {
           user={user}
           onLogout={handleLogout}
           onLoadAssessment={handleLoadAssessment}
-          currentProfile={userProfile}
-          currentResults={results}
-          isSavedToCloud={isSavedToCloud}
-          onAssessmentSaved={() => setIsSavedToCloud(true)}
           onOpenPayment={() => setIsPaymentModalOpen(true)}
+          onStartNewAssessment={() => {
+            setIsUserPanelOpen(false);
+            handleStartAssessment();
+          }}
         />
       )}
 

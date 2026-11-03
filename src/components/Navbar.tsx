@@ -111,13 +111,6 @@ export default function Navbar({
 
           {/* Quick Actions */}
           <div className="flex items-center gap-2">
-            {user?.isPaid && (
-              <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-100 text-amber-900 border border-amber-300 font-extrabold text-xs shadow-2xs">
-                <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                <span>اشتراک طلایی</span>
-              </div>
-            )}
-
             {user ? (
               <button
                 onClick={onOpenUserPanel}

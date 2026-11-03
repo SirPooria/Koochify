@@ -93,7 +93,7 @@ export default function PaymentScreen({
             <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
               <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/15 border border-white/20 text-emerald-100 text-xs font-bold backdrop-blur-md">
                 <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                <span>اشتراک دسترسی طلایی پرونده مهاجرتی ۲۰۲۶</span>
+                <span>دسترسی کامل به پرونده ارزیابی ۲۰۲۶</span>
               </div>
 
               {user && (
@@ -189,7 +189,7 @@ export default function PaymentScreen({
         <div className="p-6 sm:p-8 bg-white border-b border-slate-200">
           <h3 className="text-sm font-extrabold text-slate-900 mb-4 flex items-center gap-2">
             <Award className="w-4 h-4 text-emerald-600" />
-            <span>با فعال‌سازی اشتراک طلایی، به این بخش‌ها دسترسی نامحدود پیدا می‌کنید:</span>
+            <span>با پرداخت هزینه ارزیابی، به این بخش‌ها دسترسی پیدا می‌کنید:</span>
           </h3>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-xs text-slate-800">
