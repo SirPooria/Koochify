@@ -16,28 +16,28 @@ import UserPanelModal from "./components/UserPanelModal";
 import PaymentModal from "./components/PaymentModal";
 import AdminLeadsView from "./components/AdminLeadsView";
 import { evaluateUserMigrationProfile } from "./services/matcherEngine";
-import { 
-  AuthUser, 
-  fetchCurrentUser, 
-  getStoredUser, 
+import {
+  AuthUser,
+  fetchCurrentUser,
+  getStoredUser,
   saveAssessmentToCloud,
   fetchUserAssessments,
   deleteAssessment,
   fetchGroqEvaluation
 } from "./services/authService";
-import { 
-  UserAssessmentProfile, 
-  RecommendationSummary, 
-  RecommendedRouteResult, 
-  MigrationGoal 
+import {
+  UserAssessmentProfile,
+  RecommendationSummary,
+  RecommendedRouteResult,
+  MigrationGoal
 } from "./types";
-import { 
-  ShieldCheck, 
-  FileText, 
-  Compass, 
-  ArrowLeft, 
-  AlertTriangle, 
-  CheckCircle2, 
+import {
+  ShieldCheck,
+  FileText,
+  Compass,
+  ArrowLeft,
+  AlertTriangle,
+  CheckCircle2,
   Sparkles,
   ExternalLink,
   Printer,
@@ -72,16 +72,58 @@ export default function App() {
 
   // Check and refresh user session on mount + handle payment callbacks and admin routing
   useEffect(() => {
+    // Helper to auto-restore assessment from localStorage for paid users with empty cloud dossier
+    const autoRestorePaidUser = async (freshUser: AuthUser) => {
+      try {
+        const existingAssessments = await fetchUserAssessments();
+        if (existingAssessments && existingAssessments.length > 0) {
+          // User already has saved assessment in cloud
+          return;
+        }
+
+        const draftRaw =
+          localStorage.getItem("koochify_pending_profile") ||
+          localStorage.getItem("kochify_profile_draft");
+
+        if (draftRaw) {
+          const restoredProfile: UserAssessmentProfile = JSON.parse(draftRaw);
+          const computedResults = evaluateUserMigrationProfile(restoredProfile);
+          setUserProfile(restoredProfile);
+          setResults(computedResults);
+
+          try {
+            await saveAssessmentToCloud(restoredProfile, computedResults);
+            setIsSavedToCloud(true);
+            console.log("[AUTO-RESTORE] پرونده پیش‌نویس کاربر با موفقیت در دیتابیس ثبت شد.");
+          } catch (saveErr) {
+            console.warn("خطا در ذخیره خودکار پرونده بازیابی‌شده:", saveErr);
+          }
+          setActiveTab("results");
+        }
+      } catch (err) {
+        console.warn("Auto-restore check error:", err);
+      }
+    };
+
     fetchCurrentUser().then((freshUser) => {
-      if (freshUser) setUser(freshUser);
+      if (freshUser) {
+        setUser(freshUser);
+        if (freshUser.isPaid) {
+          autoRestorePaidUser(freshUser);
+        }
+      }
     });
 
     const handleUserUpdated = (e: any) => {
       if (e?.detail) {
         setUser(e.detail);
+        if (e.detail.isPaid) autoRestorePaidUser(e.detail);
       } else {
         fetchCurrentUser().then((fresh) => {
-          if (fresh) setUser(fresh);
+          if (fresh) {
+            setUser(fresh);
+            if (fresh.isPaid) autoRestorePaidUser(fresh);
+          }
         });
       }
     };
@@ -96,65 +138,65 @@ export default function App() {
       if (paymentStatus === "success" || paymentStatus === "failed" || paymentStatus === "error" || paymentStatus === "cancelled") {
         // Always try to restore pending assessment from localStorage after gateway redirect
         try {
-          const pendingProfileRaw = localStorage.getItem("koochify_pending_profile");
+          const pendingProfileRaw =
+            localStorage.getItem("koochify_pending_profile") ||
+            localStorage.getItem("kochify_profile_draft");
           const pendingResultsRaw = localStorage.getItem("koochify_pending_results");
-          if (pendingProfileRaw && pendingResultsRaw) {
-            const restoredProfile: UserAssessmentProfile = JSON.parse(pendingProfileRaw);
-            const restoredResults: RecommendationSummary = JSON.parse(pendingResultsRaw);
-            setUserProfile(restoredProfile);
-            setResults(restoredResults);
-            console.log("[RESTORE] پرونده ارزیابی از localStorage بازیابی شد.");
 
-            if (paymentStatus === "success") {
-              // Payment verified: save to database and show results
-              fetchCurrentUser().then(async (fresh) => {
-                if (fresh) {
-                  setUser(fresh);
-                  if (fresh.isPaid) {
-                    try {
-                      await saveAssessmentToCloud(restoredProfile, restoredResults);
-                      setIsSavedToCloud(true);
-                      console.log("[SAVE] پرونده ارزیابی پس از پرداخت موفق در دیتابیس ذخیره شد.");
-                    } catch (err) {
-                      console.warn("خطا در ذخیره پرونده پس از پرداخت:", err);
-                    }
-                    setActiveTab("results");
-                  } else {
-                    // Edge case: payment=success but user not marked paid yet (race condition)
-                    // Show results anyway, retry save after short delay
-                    setActiveTab("results");
-                    setTimeout(async () => {
-                      const retryUser = await fetchCurrentUser();
-                      if (retryUser?.isPaid) {
-                        setUser(retryUser);
-                        try {
-                          await saveAssessmentToCloud(restoredProfile, restoredResults);
-                          setIsSavedToCloud(true);
-                        } catch {}
-                      }
-                    }, 3000);
+          let restoredProfile: UserAssessmentProfile | null = null;
+          let restoredResults: RecommendationSummary | null = null;
+
+          if (pendingProfileRaw) {
+            restoredProfile = JSON.parse(pendingProfileRaw);
+            restoredResults = pendingResultsRaw
+              ? JSON.parse(pendingResultsRaw)
+              : evaluateUserMigrationProfile(restoredProfile!);
+
+            setUserProfile(restoredProfile!);
+            setResults(restoredResults!);
+            console.log("[RESTORE] پرونده ارزیابی از حافظه موقت با موفقیت بازیابی شد.");
+          }
+
+          fetchCurrentUser().then(async (fresh) => {
+            if (fresh) {
+              setUser(fresh);
+
+              // If user is marked paid in DB, always treat as success regardless of gateway query param
+              if (fresh.isPaid) {
+                if (restoredProfile && restoredResults) {
+                  try {
+                    await saveAssessmentToCloud(restoredProfile, restoredResults);
+                    setIsSavedToCloud(true);
+                  } catch (err) {
+                    console.warn("خطا در ذخیره پرونده در دیتابیس:", err);
                   }
                 }
-              });
-            } else {
-              // Payment failed/error/cancelled: Show payment screen with results still in memory
-              fetchCurrentUser().then((fresh) => {
-                if (fresh) setUser(fresh);
-              });
-              setActiveTab("payment");
-            }
-          } else if (paymentStatus === "success") {
-            // No pending data in localStorage, but payment succeeded — user might have assessment in DB
-            fetchCurrentUser().then((fresh) => {
-              if (fresh) {
-                setUser(fresh);
-                if (fresh.isPaid) setActiveTab("results");
+                setActiveTab("results");
+              } else if (paymentStatus === "success") {
+                // Gateway says success but DB update might have small race condition
+                setActiveTab("results");
+                setTimeout(async () => {
+                  const retryUser = await fetchCurrentUser();
+                  if (retryUser?.isPaid) {
+                    setUser(retryUser);
+                    if (restoredProfile && restoredResults) {
+                      try {
+                        await saveAssessmentToCloud(restoredProfile, restoredResults);
+                        setIsSavedToCloud(true);
+                      } catch {}
+                    }
+                  }
+                }, 2500);
+              } else {
+                // Truly failed/cancelled/error: keep results in memory and show payment screen
+                setActiveTab("payment");
               }
-            });
-          }
+            }
+          });
         } catch (err) {
           console.warn("خطا در بازیابی پرونده از localStorage:", err);
         }
+
         // Clean URL parameters
         window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
       }
@@ -237,7 +279,7 @@ export default function App() {
         try {
           localStorage.removeItem("koochify_pending_profile");
           localStorage.removeItem("koochify_pending_results");
-        } catch {}
+        } catch { }
       } catch (err) {
         console.warn("Direct save to database failed:", err);
       }
@@ -260,7 +302,7 @@ export default function App() {
         try {
           localStorage.removeItem("koochify_pending_profile");
           localStorage.removeItem("koochify_pending_results");
-        } catch {}
+        } catch { }
       } catch (err) {
         console.warn("Could not save to cloud after payment:", err);
       }
@@ -383,7 +425,7 @@ export default function App() {
     try {
       localStorage.removeItem("kochify_profile_draft");
       localStorage.removeItem("kochify_wizard_introduced");
-    } catch {}
+    } catch { }
     setActiveTab("home");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -699,44 +741,44 @@ export default function App() {
           </div>
 
           <div className="flex flex-wrap items-center justify-center gap-5 text-[11px] font-semibold text-slate-600">
-            <button 
+            <button
               onClick={() => {
                 setActiveTab(results ? "results" : "assessment");
                 window.scrollTo({ top: 0, behavior: "smooth" });
-              }} 
+              }}
               className="hover:text-emerald-700 transition-colors cursor-pointer"
             >
               {results ? "ارزیابی من" : "فرم ارزیابی"}
             </button>
-            <button 
+            <button
               onClick={() => {
                 setActiveTab("catalog");
                 window.scrollTo({ top: 0, behavior: "smooth" });
-              }} 
+              }}
               className="hover:text-emerald-700 transition-colors cursor-pointer"
             >
               کاتالوگ ۳۰ کشور
             </button>
-            <button 
+            <button
               onClick={() => {
                 setActiveTab("opportunities");
                 window.scrollTo({ top: 0, behavior: "smooth" });
-              }} 
+              }}
               className="hover:text-emerald-700 transition-colors cursor-pointer"
             >
               فرصت‌ها و مصاحبه‌ها
             </button>
-            <button 
+            <button
               onClick={() => {
                 setActiveTab("sources");
                 window.scrollTo({ top: 0, behavior: "smooth" });
-              }} 
+              }}
               className="hover:text-emerald-700 transition-colors cursor-pointer"
             >
               شفافیت منابع
             </button>
-            <button 
-              onClick={() => setIsPrivacyModalOpen(true)} 
+            <button
+              onClick={() => setIsPrivacyModalOpen(true)}
               className="text-emerald-700 hover:text-emerald-800 font-bold transition-colors cursor-pointer"
             >
               حریم خصوصی و سلب مسئولیت
@@ -755,7 +797,7 @@ export default function App() {
 
           {/* Enamad Trust Seal */}
           <div className="flex flex-col items-center sm:items-end gap-1.5 shrink-0">
-            <div 
+            <div
               className="bg-white p-1.5 rounded-2xl border border-slate-200/90 shadow-xs hover:shadow-md hover:border-emerald-500/50 transition-all flex items-center justify-center cursor-pointer"
               dangerouslySetInnerHTML={{
                 __html: `<a referrerpolicy='origin' target='_blank' href='https://trustseal.enamad.ir/?id=8347151&Code=cPtmp5o0en9YwezxN1LS9nOBqUpVAXl8'><img referrerpolicy='origin' src='https://trustseal.enamad.ir/logo.aspx?id=8347151&Code=cPtmp5o0en9YwezxN1LS9nOBqUpVAXl8' alt='' style='cursor:pointer' code='cPtmp5o0en9YwezxN1LS9nOBqUpVAXl8'></a>`
