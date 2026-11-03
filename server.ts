@@ -574,9 +574,12 @@ const handleOnlinePaymentRequest = async (req: any, res: any) => {
 
     console.log(`[ZIBAL REQUEST] شروع درخواست پرداخت به زیبال برای ${req.user.phoneNumber} با مرچنت ${merchant} (مبلغ: ${priceTomans} تومان)`);
 
-    const zibalRes = await fetch("https://gateway.zibal.ir/v1/request", {
+    const zibalRes = await fetch("https://proxy.koochify.ir/proxy.php?action=request", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "X-Proxy-Token": "my-secret-123",
+      },
       body: JSON.stringify({
         merchant: merchant,
         amount: amountRials,
@@ -671,9 +674,12 @@ const handleZibalCallback = async (req: any, res: any) => {
         process.env.MERCHANT_ID ||
         "6addde0e944acf62f5fd1438";
 
-      const verifyRes = await fetch("https://gateway.zibal.ir/v1/verify", {
+      const verifyRes = await fetch("https://proxy.koochify.ir/proxy.php?action=verify", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Proxy-Token": "my-secret-123",
+        },
         body: JSON.stringify({
           merchant: merchant,
           trackId: Number(trackId),
