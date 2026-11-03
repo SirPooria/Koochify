@@ -19,7 +19,6 @@ import {
 import {
   AuthUser,
   fetchPaymentConfig,
-  instantUnlockPayment,
   requestOnlinePayment,
   PaymentConfig
 } from "../services/authService";
@@ -55,9 +54,11 @@ export default function PaymentScreen({
         window.location.href = res.paymentUrl;
         return;
       }
-      // Instant unlock fallback if gateway returns direct success
-      const unlockRes = await instantUnlockPayment();
-      onPaymentSuccess(unlockRes.user);
+      if ((res as any).freeUnlock && (res as any).user) {
+        onPaymentSuccess((res as any).user);
+        return;
+      }
+      throw new Error("آدرس معتبری از درگاه پرداخت زیبال (شاپرک) دریافت نشد.");
     } catch (err: any) {
       setErrorMessage(err.message || "خطا در برقراری ارتباط با درگاه پرداخت. لطفاً دوباره تلاش نمایید.");
       setIsLoading(false);

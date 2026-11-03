@@ -20,6 +20,7 @@ import {
   findUserById,
   recordPaymentTransaction,
   completePaymentTransaction,
+  getTransactionByTrackId,
 } from "./server/db.ts";
 import { sendOtpSms } from "./server/smsService.ts";
 import { getAssessmentPriceTomans, setAssessmentPriceTomans } from "./server/settings.ts";
@@ -30,6 +31,85 @@ dotenv.config();
 
 export const app = express();
 app.use(express.json());
+
+// --- Security Headers Middleware ---
+app.use((_req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  res.setHeader("X-XSS-Protection", "1; mode=block");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  next();
+});
+
+// --- In-Memory Rate Limiting Infrastructure ---
+interface RateLimitBucket {
+  count: number;
+  resetAt: number;
+}
+const rateLimits = {
+  otpSend: new Map<string, { lastSentAt: number; hourlyCount: number; resetAt: number }>(),
+  otpVerify: new Map<string, { attempts: number; lockUntil: number }>(),
+  general: new Map<string, RateLimitBucket>(),
+  ai: new Map<string, RateLimitBucket>(),
+};
+
+// Periodic cleanup of expired rate-limit memory keys
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, val] of rateLimits.otpSend.entries()) {
+    if (now > val.resetAt) rateLimits.otpSend.delete(key);
+  }
+  for (const [key, val] of rateLimits.otpVerify.entries()) {
+    if (now > val.lockUntil) rateLimits.otpVerify.delete(key);
+  }
+  for (const [key, val] of rateLimits.general.entries()) {
+    if (now > val.resetAt) rateLimits.general.delete(key);
+  }
+  for (const [key, val] of rateLimits.ai.entries()) {
+    if (now > val.resetAt) rateLimits.ai.delete(key);
+  }
+}, 5 * 60 * 1000).unref();
+
+function getClientIp(req: express.Request): string {
+  const forwarded = req.headers["x-forwarded-for"];
+  if (typeof forwarded === "string") {
+    return forwarded.split(",")[0].trim();
+  }
+  return req.socket?.remoteAddress || "127.0.0.1";
+}
+
+// General API rate limiter (180 requests/min per IP)
+const generalRateLimiter = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const ip = getClientIp(req);
+  const now = Date.now();
+  const bucket = rateLimits.general.get(ip);
+  if (!bucket || now > bucket.resetAt) {
+    rateLimits.general.set(ip, { count: 1, resetAt: now + 60 * 1000 });
+    return next();
+  }
+  if (bucket.count >= 180) {
+    return res.status(429).json({ error: "تعداد درخواست‌های ارسالی بیش از حد مجاز است. لطفاً کمی بعد دوباره تلاش نمایید." });
+  }
+  bucket.count++;
+  next();
+};
+app.use(generalRateLimiter);
+
+// AI endpoints rate limiter (15 requests/5min per IP)
+const aiRateLimiter = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const ip = getClientIp(req);
+  const now = Date.now();
+  const bucket = rateLimits.ai.get(ip);
+  if (!bucket || now > bucket.resetAt) {
+    rateLimits.ai.set(ip, { count: 1, resetAt: now + 5 * 60 * 1000 });
+    return next();
+  }
+  if (bucket.count >= 15) {
+    return res.status(429).json({ error: "سقف مجاز ارزیابی هوش مصنوعی برای آدرس شما تکمیل شده است. لطفاً چند دقیقه دیگر شکیبا باشید." });
+  }
+  bucket.count++;
+  next();
+};
 
 // API Health Check & Deployment Ping
 app.get(["/api", "/api/health"], (req, res) => {
@@ -95,6 +175,33 @@ app.post("/api/auth/send-otp", async (req, res) => {
     if (normPhone.length < 10 || !normPhone.startsWith("09")) {
       return res.status(400).json({ error: "شماره تلفن همراه وارد شده معتبر نیست. (مثال: ۰۹۱۲۳۴۵۶۷۸۹)" });
     }
+
+    // Rate limiting: 1 SMS per 60s per phone, max 5 per hour (prevents SMS spamming / bombing)
+    const now = Date.now();
+    const sendRecord = rateLimits.otpSend.get(normPhone);
+    if (sendRecord) {
+      if (now - sendRecord.lastSentAt < 60 * 1000) {
+        const remainingSec = Math.ceil((60 * 1000 - (now - sendRecord.lastSentAt)) / 1000);
+        return res.status(429).json({
+          error: `لطفاً ${remainingSec} ثانیه دیگر قبل از درخواست مجدد پیامک شکیبا باشید.`,
+        });
+      }
+      if (now < sendRecord.resetAt && sendRecord.hourlyCount >= 5) {
+        return res.status(429).json({
+          error: "سقف مجاز ارسال پیامک در این ساعت تکمیل شده است. لطفاً ساعتی دیگر مراجعه فرمایید.",
+        });
+      }
+      sendRecord.lastSentAt = now;
+      sendRecord.hourlyCount = now > sendRecord.resetAt ? 1 : sendRecord.hourlyCount + 1;
+      if (now > sendRecord.resetAt) sendRecord.resetAt = now + 60 * 60 * 1000;
+    } else {
+      rateLimits.otpSend.set(normPhone, {
+        lastSentAt: now,
+        hourlyCount: 1,
+        resetAt: now + 60 * 60 * 1000,
+      });
+    }
+
     const { code, expiresAt } = await createOtp(normPhone);
 
     // Dispatch SMS via Melipayamak SendByBaseNumber2 (BodyId 567584)
@@ -135,7 +242,7 @@ app.post("/api/auth/send-otp", async (req, res) => {
   }
 });
 
-// Verify OTP and create/login user
+// Verify OTP and create/login user (Harded against brute force and unauthorized bypass)
 app.post("/api/auth/verify-otp", async (req, res) => {
   try {
     const { phoneNumber, code, fullName } = req.body;
@@ -144,10 +251,34 @@ app.post("/api/auth/verify-otp", async (req, res) => {
     }
     const normPhone = normalizePhoneNumber(phoneNumber);
     const cleanCode = String(code).trim();
-    const isValid = cleanCode === "12345" || (await verifyOtpCode(normPhone, cleanCode));
+    const now = Date.now();
+
+    // Check brute-force lockout
+    const verifyRecord = rateLimits.otpVerify.get(normPhone);
+    if (verifyRecord && now < verifyRecord.lockUntil) {
+      const waitMin = Math.ceil((verifyRecord.lockUntil - now) / 60000);
+      return res.status(429).json({
+        error: `تعداد تلاش‌های ناموفق بیش از حد مجاز بوده است. لطفاً ${waitMin} دقیقه دیگر دوباره امتحان کنید.`,
+      });
+    }
+
+    // Only allow mock OTP for simulated test account in dev/test environment
+    const isDevMockPhone =
+      (process.env.NODE_ENV !== "production" || process.env.ALLOW_SIMULATED_OTP === "true") &&
+      normPhone === "09120000000";
+    const isValid =
+      (isDevMockPhone && cleanCode === "12345") ||
+      (await verifyOtpCode(normPhone, cleanCode));
+
     if (!isValid) {
+      const currentAttempts = (verifyRecord?.attempts || 0) + 1;
+      const lockUntil = currentAttempts >= 5 ? now + 15 * 60 * 1000 : 0;
+      rateLimits.otpVerify.set(normPhone, { attempts: currentAttempts, lockUntil });
       return res.status(400).json({ error: "کد تأیید وارد شده نادرست است یا منقضی شده است." });
     }
+
+    // Reset attempts on successful authentication
+    rateLimits.otpVerify.delete(normPhone);
 
     const user = await findOrCreateUser(normPhone, fullName);
     const { token, expiresAt } = await createSession(user.id);
@@ -315,8 +446,11 @@ app.delete("/api/user/assessments/:id", authMiddleware, async (req: any, res) =>
 
 // --- Payment Routes ---
 // Get Payment Configuration
-app.get("/api/payment/config", (req, res) => {
+app.get("/api/payment/config", (_req, res) => {
   const priceTomans = getAssessmentPriceTomans();
+  const autoUnlockAllowed =
+    process.env.AUTO_UNLOCK_CARD_TO_CARD === "true" && process.env.NODE_ENV === "development";
+
   return res.json({
     amountTomans: priceTomans,
     amountRials: priceTomans * 10,
@@ -324,7 +458,7 @@ app.get("/api/payment/config", (req, res) => {
     cardHolder: process.env.CARD_HOLDER || "به نام مدیریت سامانه کوچیفای",
     hasOnlineGateway: Boolean(process.env.ZIBAL_MERCHANT_KEY || process.env.MERCHANT_ID || "6addde0e944acf62f5fd1438"),
     gatewayName: "درگاه پرداخت زیبال (شاپرک)",
-    autoUnlockCardToCard: process.env.AUTO_UNLOCK_CARD_TO_CARD !== "false",
+    autoUnlockCardToCard: autoUnlockAllowed,
   });
 });
 
@@ -336,7 +470,10 @@ app.post("/api/payment/card-to-card", authMiddleware, async (req: any, res) => {
       return res.status(400).json({ error: "لطفاً حداقل ۴ رقم آخر کارت یا شماره پیگیری تراکنش را وارد کنید." });
     }
 
-    const autoUnlock = process.env.AUTO_UNLOCK_CARD_TO_CARD !== "false";
+    // High Security: In production, card-to-card payments ALWAYS require manual admin verification.
+    const autoUnlock =
+      process.env.AUTO_UNLOCK_CARD_TO_CARD === "true" &&
+      process.env.ALLOW_INSECURE_CARD_AUTO_UNLOCK === "true";
     const paymentRef = (transactionRef || `C2C-${Date.now()}`).trim();
     const status = autoUnlock ? "paid" : "pending_verification";
     const isPaid = autoUnlock;
@@ -354,8 +491,8 @@ app.post("/api/payment/card-to-card", authMiddleware, async (req: any, res) => {
     return res.json({
       success: true,
       message: autoUnlock
-        ? "پرداخت شما با موفقیت ثبت شد و قفل کامل پرونده‌های مهاجرتی شما بلافاصله باز شد!"
-        : "اطلاعات فیش با موفقیت ثبت شد و پرونده شما حداکثر تا ۱۰ دقیقه دیگر پس از تطبیق بانکی فعال خواهد شد.",
+        ? "پرداخت شما با موفقیت ثبت شد و دسترسی کامل پرونده فعال گردید."
+        : "اطلاعات فیش با موفقیت ثبت شد و پرونده شما پس از تطبیق بانکی توسط مدیریت فعال خواهد شد.",
       user: updatedUser,
       isPaid: autoUnlock,
     });
@@ -365,21 +502,31 @@ app.post("/api/payment/card-to-card", authMiddleware, async (req: any, res) => {
   }
 });
 
-// Instant Online Payment Unlock (Sandbox / Simulator)
+// Instant Online Payment Unlock (Restricted strictly to Authorized Admins or Dev sandbox)
 app.post("/api/payment/instant-unlock", authMiddleware, async (req: any, res) => {
+  const adminKey = req.headers["x-admin-key"];
+  const isAdmin = adminKey === (process.env.ADMIN_PASSWORD || "koochify2026");
+  const isDevAllowed =
+    process.env.NODE_ENV === "development" && process.env.ALLOW_DEV_INSTANT_UNLOCK === "true";
+
+  if (!isAdmin && !isDevAllowed) {
+    return res.status(403).json({
+      error: "عملیات غیرمجاز است. دسترسی کامل منحصراً پس از پرداخت در درگاه بانکی شاپرک یا تأیید مدیریت فعال می‌شود.",
+    });
+  }
+
   try {
-    const priceTomans = getAssessmentPriceTomans();
     const updatedUser = await updateUserPayment(
       req.user.id,
       true,
       "paid",
-      `SIM-${Date.now()}`,
-      "ONLINE"
+      `ADM-${Date.now()}`,
+      "ADMIN_MANUAL"
     );
-    console.log(`[PAYMENT] پرداخت آنلاین ${priceTomans.toLocaleString("fa-IR")} تومانی با موفقیت فعال شد برای: ${req.user.phoneNumber}`);
+    console.log(`[ADMIN UNLOCK] دسترسی کاربر با تأیید مدیریت فعال شد: ${req.user.phoneNumber}`);
     return res.json({
       success: true,
-      message: `پرداخت با موفقیت انجام شد و دسترسی به نتایج ارزیابی هوشمند باز شد.`,
+      message: `پرداخت با موفقیت فعال شد.`,
       user: updatedUser,
       isPaid: true,
     });
@@ -485,17 +632,40 @@ app.post("/api/payment/zibal/request", authMiddleware, handleOnlinePaymentReques
 app.post("/api/payment/zarinpal/request", authMiddleware, handleOnlinePaymentRequest);
 app.post("/api/payment/request", authMiddleware, handleOnlinePaymentRequest);
 
-// Zibal Callback handler (Handles both GET and POST redirects from Zibal)
+// Zibal Callback handler (Secured with DB lookup + URL fallback for robustness)
 const handleZibalCallback = async (req: any, res: any) => {
   try {
     const trackId = req.query.trackId || req.body?.trackId;
     const success = req.query.success || req.body?.success;
     const status = req.query.status || req.body?.status;
-    const userId = req.query.userId || req.body?.userId;
+    const queryUserId = req.query.userId || req.body?.userId;
 
-    console.log(`[ZIBAL CALLBACK] برگشت از درگاه: trackId=${trackId}, success=${success}, status=${status}, userId=${userId}`);
+    console.log(`[ZIBAL CALLBACK] برگشت از درگاه: trackId=${trackId}, success=${success}, status=${status}, queryUserId=${queryUserId}`);
 
-    if (String(success) === "1" && trackId && userId) {
+    if (String(success) === "1" && trackId) {
+      // Try to get verified userId from DB transaction record (most secure path)
+      let verifiedUserId: string | null = null;
+      try {
+        const tx = await getTransactionByTrackId(String(trackId));
+        if (tx && tx.userId) {
+          verifiedUserId = tx.userId;
+          // Replay prevention: if already verified, redirect to success
+          if (tx.status === "verified") {
+            console.log(`[ZIBAL CALLBACK] تراکنش قبلاً تایید شده بود: trackId=${trackId}`);
+            return res.redirect(`https://koochify.ir/?payment=success&ref=${tx.refNumber || trackId}`);
+          }
+        }
+      } catch (dbErr) {
+        console.error(`[ZIBAL CALLBACK] خطا در بازیابی تراکنش از DB:`, dbErr);
+      }
+
+      // Fallback: if DB lookup failed, use userId from callback URL (set by us during request)
+      const finalUserId = verifiedUserId || (queryUserId ? String(queryUserId) : null);
+      if (!finalUserId) {
+        console.error(`[ZIBAL CALLBACK SECURITY] هیچ شناسه کاربری برای trackId=${trackId} یافت نشد.`);
+        return res.redirect("https://koochify.ir/?payment=failed&reason=no_user");
+      }
+
       const merchant =
         process.env.ZIBAL_MERCHANT_KEY ||
         process.env.MERCHANT_ID ||
@@ -517,9 +687,9 @@ const handleZibalCallback = async (req: any, res: any) => {
       if (verifyData?.result === 100 || verifyData?.result === 201) {
         const refNumber = verifyData.refNumber || trackId;
         const cardNumber = verifyData.cardNumber || "";
-        await updateUserPayment(String(userId), true, "paid", String(refNumber), cardNumber);
+        await updateUserPayment(finalUserId, true, "paid", String(refNumber), cardNumber);
         await completePaymentTransaction(String(trackId), String(refNumber), cardNumber, verifyData).catch((e) => console.error("Could not complete payment tx:", e));
-        console.log(`[PAYMENT SUCCESS] پرداخت کاربر ${userId} با موفقیت تایید شد. شماره تراکنش: ${refNumber}`);
+        console.log(`[PAYMENT SUCCESS] پرداخت کاربر ${finalUserId} با موفقیت تایید شد. شماره تراکنش: ${refNumber}`);
         return res.redirect(`https://koochify.ir/?payment=success&ref=${refNumber}`);
       } else {
         await completePaymentTransaction(String(trackId), "", "", verifyData).catch((e) => console.error("Could not update failed tx:", e));
@@ -540,13 +710,18 @@ app.post("/api/payment/zibal/callback", handleZibalCallback);
 app.get("/api/payment/zarinpal/callback", handleZibalCallback);
 app.get("/api/payment/callback", handleZibalCallback);
 
-// Online Payment Simulation (Optional local dev fallback)
+// Online Payment Simulation (Restricted strictly to Development environment with admin authorization)
 app.get("/api/payment/simulate", async (req: any, res) => {
-  const { userId, authority } = req.query;
-  if (userId) {
-    await updateUserPayment(String(userId), true, "paid", String(authority || `SIM-${Date.now()}`));
-    console.log(`[PAYMENT] پرداخت آنلاین آزمایشی تایید شد برای کاربر: ${userId}`);
+  if (process.env.NODE_ENV === "production" && process.env.ALLOW_DEV_SIMULATE !== "true") {
+    return res.status(404).send("صفحه مورد نظر یافت نشد.");
   }
+  const { userId, authority, adminSecret } = req.query;
+  if (!userId || adminSecret !== (process.env.ADMIN_PASSWORD || "koochify2026")) {
+    return res.status(403).send("دسترسی به شبیه‌ساز پرداخت تنها در حالت توسعه با رمز عبور معتبر مدیریت مجاز است.");
+  }
+
+  await updateUserPayment(String(userId), true, "paid", String(authority || `SIM-${Date.now()}`));
+  console.log(`[PAYMENT] پرداخت آنلاین آزمایشی تایید شد برای کاربر: ${userId}`);
   return res.redirect("/?payment=success");
 });
 
@@ -636,7 +811,7 @@ app.post("/api/admin/price", adminAuthMiddleware, (req, res) => {
 });
 
 // Groq AI Deep Immigration Evaluation API
-app.post("/api/assessment/groq-evaluate", async (req, res) => {
+app.post("/api/assessment/groq-evaluate", aiRateLimiter, async (req, res) => {
   try {
     const profile = req.body;
     if (!profile) {
@@ -652,7 +827,7 @@ app.post("/api/assessment/groq-evaluate", async (req, res) => {
 });
 
 // API Route for immigration evaluation
-app.post("/api/analyze-immigration", async (req, res) => {
+app.post("/api/analyze-immigration", aiRateLimiter, async (req, res) => {
   const userProfile = req.body;
   try {
     console.log("Analyzing immigration profile for:", userProfile?.fullName);

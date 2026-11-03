@@ -271,11 +271,10 @@ export default function LandingPage({
                 key={idx}
                 onClick={() => setActiveSlide(idx)}
                 aria-label={`اسلاید ${idx + 1}`}
-                className={`h-2 rounded-full transition-all duration-300 cursor-pointer ${
-                  activeSlide === idx
-                    ? "w-8 bg-gradient-to-r from-emerald-400 to-teal-400 shadow-md shadow-emerald-500/40"
-                    : "w-2.5 bg-slate-700 hover:bg-slate-600"
-                }`}
+                className={`h-2 rounded-full transition-all duration-300 cursor-pointer ${activeSlide === idx
+                  ? "w-8 bg-gradient-to-r from-emerald-400 to-teal-400 shadow-md shadow-emerald-500/40"
+                  : "w-2.5 bg-slate-700 hover:bg-slate-600"
+                  }`}
               />
             ))}
           </div>

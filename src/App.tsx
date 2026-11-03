@@ -72,12 +72,6 @@ export default function App() {
 
   // Check and refresh user session on mount + handle payment callbacks and admin routing
   useEffect(() => {
-    // Clear old localstorage keys to ensure no local storage residue
-    try {
-      localStorage.removeItem("kochify_user_profile_v2");
-      localStorage.removeItem("kochify_assessment_results_v2");
-    } catch {}
-
     fetchCurrentUser().then((freshUser) => {
       if (freshUser) setUser(freshUser);
     });
@@ -96,13 +90,72 @@ export default function App() {
       window.addEventListener("koochify_user_updated", handleUserUpdated);
 
       const params = new URLSearchParams(window.location.search);
-      if (params.get("payment") === "success") {
-        fetchCurrentUser().then((fresh) => {
-          if (fresh) {
-            setUser(fresh);
-            if (results) setActiveTab("results");
+      const paymentStatus = params.get("payment");
+
+      // Handle return from payment gateway (Zibal redirect back)
+      if (paymentStatus === "success" || paymentStatus === "failed" || paymentStatus === "error" || paymentStatus === "cancelled") {
+        // Always try to restore pending assessment from localStorage after gateway redirect
+        try {
+          const pendingProfileRaw = localStorage.getItem("koochify_pending_profile");
+          const pendingResultsRaw = localStorage.getItem("koochify_pending_results");
+          if (pendingProfileRaw && pendingResultsRaw) {
+            const restoredProfile: UserAssessmentProfile = JSON.parse(pendingProfileRaw);
+            const restoredResults: RecommendationSummary = JSON.parse(pendingResultsRaw);
+            setUserProfile(restoredProfile);
+            setResults(restoredResults);
+            console.log("[RESTORE] پرونده ارزیابی از localStorage بازیابی شد.");
+
+            if (paymentStatus === "success") {
+              // Payment verified: save to database and show results
+              fetchCurrentUser().then(async (fresh) => {
+                if (fresh) {
+                  setUser(fresh);
+                  if (fresh.isPaid) {
+                    try {
+                      await saveAssessmentToCloud(restoredProfile, restoredResults);
+                      setIsSavedToCloud(true);
+                      console.log("[SAVE] پرونده ارزیابی پس از پرداخت موفق در دیتابیس ذخیره شد.");
+                    } catch (err) {
+                      console.warn("خطا در ذخیره پرونده پس از پرداخت:", err);
+                    }
+                    setActiveTab("results");
+                  } else {
+                    // Edge case: payment=success but user not marked paid yet (race condition)
+                    // Show results anyway, retry save after short delay
+                    setActiveTab("results");
+                    setTimeout(async () => {
+                      const retryUser = await fetchCurrentUser();
+                      if (retryUser?.isPaid) {
+                        setUser(retryUser);
+                        try {
+                          await saveAssessmentToCloud(restoredProfile, restoredResults);
+                          setIsSavedToCloud(true);
+                        } catch {}
+                      }
+                    }, 3000);
+                  }
+                }
+              });
+            } else {
+              // Payment failed/error/cancelled: Show payment screen with results still in memory
+              fetchCurrentUser().then((fresh) => {
+                if (fresh) setUser(fresh);
+              });
+              setActiveTab("payment");
+            }
+          } else if (paymentStatus === "success") {
+            // No pending data in localStorage, but payment succeeded — user might have assessment in DB
+            fetchCurrentUser().then((fresh) => {
+              if (fresh) {
+                setUser(fresh);
+                if (fresh.isPaid) setActiveTab("results");
+              }
+            });
           }
-        });
+        } catch (err) {
+          console.warn("خطا در بازیابی پرونده از localStorage:", err);
+        }
+        // Clean URL parameters
         window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
       }
 
@@ -166,12 +219,25 @@ export default function App() {
     // Strict Pay-per-Assessment Policy:
     // If user has not paid for this evaluation, gate to payment screen and DO NOT save to DB
     if (!freshUser?.isPaid) {
+      // Persist assessment to localStorage so it survives payment gateway redirect (full page reload)
+      try {
+        localStorage.setItem("koochify_pending_profile", JSON.stringify(profile));
+        localStorage.setItem("koochify_pending_results", JSON.stringify(summary));
+        console.log("[PERSIST] پرونده ارزیابی قبل از پرداخت در localStorage ذخیره شد.");
+      } catch (err) {
+        console.warn("خطا در ذخیره موقت پرونده:", err);
+      }
       setActiveTab("payment");
     } else {
       // User is paid: save assessment to DB and show results
       try {
         await saveAssessmentToCloud(profile, summary);
         setIsSavedToCloud(true);
+        // Clear pending data from localStorage since it's safely in the database now
+        try {
+          localStorage.removeItem("koochify_pending_profile");
+          localStorage.removeItem("koochify_pending_results");
+        } catch {}
       } catch (err) {
         console.warn("Direct save to database failed:", err);
       }
@@ -190,6 +256,11 @@ export default function App() {
       try {
         await saveAssessmentToCloud(userProfile, results);
         setIsSavedToCloud(true);
+        // Clear pending data from localStorage since it's safely in the database now
+        try {
+          localStorage.removeItem("koochify_pending_profile");
+          localStorage.removeItem("koochify_pending_results");
+        } catch {}
       } catch (err) {
         console.warn("Could not save to cloud after payment:", err);
       }
@@ -320,6 +391,12 @@ export default function App() {
   // Handle Download / Print Report
   const handleDownloadReport = () => {
     if (!results) return;
+
+    // Strict access control: Full report download requires unlocked payment
+    if (!user?.isPaid) {
+      setIsPaymentModalOpen(true);
+      return;
+    }
 
     let md = `# گزارش جامع راهبردی مهاجرت کوچیفای (Kochify Report)\n`;
     md += `تاریخ ارزیابی: ${new Date().toLocaleDateString("fa-IR")} | نگارش سامانه: v2.6.1\n\n`;

@@ -89,6 +89,26 @@ export const supabase: SupabaseClient | null = isSupabaseConfigured
     })
   : null;
 
+// High-performance LRU-like session cache to handle heavy traffic bursts
+interface CachedSessionUser {
+  user: User;
+  cachedAt: number;
+}
+const sessionUserCache = new Map<string, CachedSessionUser>();
+const SESSION_CACHE_TTL_MS = 60 * 1000; // 60 seconds TTL
+
+export function invalidateUserSessionCache(userIdOrToken?: string): void {
+  if (!userIdOrToken) {
+    sessionUserCache.clear();
+    return;
+  }
+  for (const [tok, cached] of sessionUserCache.entries()) {
+    if (tok === userIdOrToken || cached.user.id === userIdOrToken) {
+      sessionUserCache.delete(tok);
+    }
+  }
+}
+
 // Emergency fallback store for offline tests when Supabase is not configured
 const memoryFallbackStore = {
   users: new Map<string, User>(),
@@ -349,6 +369,7 @@ export async function findUserById(userId: string): Promise<User | null> {
  */
 export async function updateUserProfile(userId: string, fullName: string): Promise<User | null> {
   const now = new Date().toISOString();
+  invalidateUserSessionCache(userId);
 
   if (supabase) {
     const { data, error } = await supabase
@@ -385,6 +406,7 @@ export async function updateUserPayment(
   cardLastDigits?: string | null
 ): Promise<User | null> {
   const now = new Date().toISOString();
+  invalidateUserSessionCache(userId);
 
   if (supabase) {
     const payload: any = {
@@ -452,11 +474,17 @@ export async function createSession(userId: string): Promise<{ token: string; ex
 }
 
 /**
- * Gets user by session token
+ * Gets user by session token (optimized with high-performance in-memory cache)
  */
 export async function getUserByToken(token: string): Promise<User | null> {
   if (!token) return null;
   const now = Date.now();
+
+  // Fast path: check in-memory cache
+  const cached = sessionUserCache.get(token);
+  if (cached && now - cached.cachedAt < SESSION_CACHE_TTL_MS) {
+    return cached.user;
+  }
 
   if (supabase) {
     const { data: session, error } = await supabase
@@ -466,19 +494,34 @@ export async function getUserByToken(token: string): Promise<User | null> {
       .gt("expires_at", now)
       .maybeSingle();
 
-    if (error || !session) return null;
-    return await findUserById(session.user_id);
+    if (error || !session) {
+      sessionUserCache.delete(token);
+      return null;
+    }
+    const user = await findUserById(session.user_id);
+    if (user) {
+      sessionUserCache.set(token, { user, cachedAt: now });
+    }
+    return user;
   }
 
   const session = memoryFallbackStore.sessions.get(token);
-  if (!session || session.expiresAt <= now) return null;
-  return memoryFallbackStore.users.get(session.userId) || null;
+  if (!session || session.expiresAt <= now) {
+    sessionUserCache.delete(token);
+    return null;
+  }
+  const user = memoryFallbackStore.users.get(session.userId) || null;
+  if (user) {
+    sessionUserCache.set(token, { user, cachedAt: now });
+  }
+  return user;
 }
 
 /**
  * Deletes a session on logout
  */
 export async function deleteSession(token: string): Promise<boolean> {
+  invalidateUserSessionCache(token);
   if (supabase) {
     const { error } = await supabase.from("sessions").delete().eq("token", token);
     return !error;
@@ -715,6 +758,55 @@ export async function completePaymentTransaction(
     }
   }
   return false;
+}
+
+/**
+ * Retrieves a payment transaction record by its gateway trackId
+ */
+export async function getTransactionByTrackId(trackId: string): Promise<{
+  id: string;
+  userId: string | null;
+  amountTomans: number;
+  amountRials: number;
+  trackId: string | null;
+  refNumber?: string | null;
+  status: "pending" | "verified" | "failed" | "cancelled";
+} | null> {
+  if (!trackId) return null;
+
+  if (supabase) {
+    const { data, error } = await supabase
+      .from("payment_transactions")
+      .select("*")
+      .eq("track_id", trackId)
+      .maybeSingle();
+
+    if (error || !data) return null;
+    return {
+      id: data.id,
+      userId: data.user_id,
+      amountTomans: data.amount_tomans,
+      amountRials: data.amount_rials,
+      trackId: data.track_id,
+      refNumber: data.ref_number,
+      status: data.status,
+    };
+  }
+
+  for (const tx of memoryFallbackStore.transactions.values()) {
+    if (tx.trackId === trackId) {
+      return {
+        id: tx.id,
+        userId: tx.userId,
+        amountTomans: tx.amountTomans,
+        amountRials: tx.amountRials,
+        trackId: tx.trackId,
+        refNumber: tx.refNumber,
+        status: tx.status,
+      };
+    }
+  }
+  return null;
 }
 
 /**

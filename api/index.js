@@ -25,6 +25,19 @@ var supabase = isSupabaseConfigured ? createClient(supabaseUrl, supabaseServiceK
     autoRefreshToken: false
   }
 }) : null;
+var sessionUserCache = /* @__PURE__ */ new Map();
+var SESSION_CACHE_TTL_MS = 60 * 1e3;
+function invalidateUserSessionCache(userIdOrToken) {
+  if (!userIdOrToken) {
+    sessionUserCache.clear();
+    return;
+  }
+  for (const [tok, cached] of sessionUserCache.entries()) {
+    if (tok === userIdOrToken || cached.user.id === userIdOrToken) {
+      sessionUserCache.delete(tok);
+    }
+  }
+}
 var memoryFallbackStore = {
   users: /* @__PURE__ */ new Map(),
   usersByPhone: /* @__PURE__ */ new Map(),
@@ -203,6 +216,7 @@ async function findUserById(userId) {
 }
 async function updateUserProfile(userId, fullName) {
   const now = (/* @__PURE__ */ new Date()).toISOString();
+  invalidateUserSessionCache(userId);
   if (supabase) {
     const { data, error } = await supabase.from("users").update({ full_name: fullName.trim(), updated_at: now }).eq("id", userId).select().maybeSingle();
     if (error) {
@@ -221,6 +235,7 @@ async function updateUserProfile(userId, fullName) {
 }
 async function updateUserPayment(userId, isPaid, paymentStatus, paymentRef, cardLastDigits) {
   const now = (/* @__PURE__ */ new Date()).toISOString();
+  invalidateUserSessionCache(userId);
   if (supabase) {
     const payload = {
       is_paid: isPaid,
@@ -274,16 +289,35 @@ async function createSession(userId) {
 async function getUserByToken(token) {
   if (!token) return null;
   const now = Date.now();
+  const cached = sessionUserCache.get(token);
+  if (cached && now - cached.cachedAt < SESSION_CACHE_TTL_MS) {
+    return cached.user;
+  }
   if (supabase) {
     const { data: session2, error } = await supabase.from("sessions").select("user_id").eq("token", token).gt("expires_at", now).maybeSingle();
-    if (error || !session2) return null;
-    return await findUserById(session2.user_id);
+    if (error || !session2) {
+      sessionUserCache.delete(token);
+      return null;
+    }
+    const user2 = await findUserById(session2.user_id);
+    if (user2) {
+      sessionUserCache.set(token, { user: user2, cachedAt: now });
+    }
+    return user2;
   }
   const session = memoryFallbackStore.sessions.get(token);
-  if (!session || session.expiresAt <= now) return null;
-  return memoryFallbackStore.users.get(session.userId) || null;
+  if (!session || session.expiresAt <= now) {
+    sessionUserCache.delete(token);
+    return null;
+  }
+  const user = memoryFallbackStore.users.get(session.userId) || null;
+  if (user) {
+    sessionUserCache.set(token, { user, cachedAt: now });
+  }
+  return user;
 }
 async function deleteSession(token) {
+  invalidateUserSessionCache(token);
   if (supabase) {
     const { error } = await supabase.from("sessions").delete().eq("token", token);
     return !error;
@@ -442,6 +476,36 @@ async function completePaymentTransaction(trackId, refNumber, cardPan, rawRespon
     }
   }
   return false;
+}
+async function getTransactionByTrackId(trackId) {
+  if (!trackId) return null;
+  if (supabase) {
+    const { data, error } = await supabase.from("payment_transactions").select("*").eq("track_id", trackId).maybeSingle();
+    if (error || !data) return null;
+    return {
+      id: data.id,
+      userId: data.user_id,
+      amountTomans: data.amount_tomans,
+      amountRials: data.amount_rials,
+      trackId: data.track_id,
+      refNumber: data.ref_number,
+      status: data.status
+    };
+  }
+  for (const tx of memoryFallbackStore.transactions.values()) {
+    if (tx.trackId === trackId) {
+      return {
+        id: tx.id,
+        userId: tx.userId,
+        amountTomans: tx.amountTomans,
+        amountRials: tx.amountRials,
+        trackId: tx.trackId,
+        refNumber: tx.refNumber,
+        status: tx.status
+      };
+    }
+  }
+  return null;
 }
 async function getAllLeadsForAdmin() {
   if (supabase) {
@@ -1009,6 +1073,70 @@ import crypto2 from "node:crypto";
 dotenv2.config();
 var app = express();
 app.use(express.json());
+app.use((_req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  res.setHeader("X-XSS-Protection", "1; mode=block");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  next();
+});
+var rateLimits = {
+  otpSend: /* @__PURE__ */ new Map(),
+  otpVerify: /* @__PURE__ */ new Map(),
+  general: /* @__PURE__ */ new Map(),
+  ai: /* @__PURE__ */ new Map()
+};
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, val] of rateLimits.otpSend.entries()) {
+    if (now > val.resetAt) rateLimits.otpSend.delete(key);
+  }
+  for (const [key, val] of rateLimits.otpVerify.entries()) {
+    if (now > val.lockUntil) rateLimits.otpVerify.delete(key);
+  }
+  for (const [key, val] of rateLimits.general.entries()) {
+    if (now > val.resetAt) rateLimits.general.delete(key);
+  }
+  for (const [key, val] of rateLimits.ai.entries()) {
+    if (now > val.resetAt) rateLimits.ai.delete(key);
+  }
+}, 5 * 60 * 1e3).unref();
+function getClientIp(req) {
+  const forwarded = req.headers["x-forwarded-for"];
+  if (typeof forwarded === "string") {
+    return forwarded.split(",")[0].trim();
+  }
+  return req.socket?.remoteAddress || "127.0.0.1";
+}
+var generalRateLimiter = (req, res, next) => {
+  const ip = getClientIp(req);
+  const now = Date.now();
+  const bucket = rateLimits.general.get(ip);
+  if (!bucket || now > bucket.resetAt) {
+    rateLimits.general.set(ip, { count: 1, resetAt: now + 60 * 1e3 });
+    return next();
+  }
+  if (bucket.count >= 180) {
+    return res.status(429).json({ error: "\u062A\u0639\u062F\u0627\u062F \u062F\u0631\u062E\u0648\u0627\u0633\u062A\u200C\u0647\u0627\u06CC \u0627\u0631\u0633\u0627\u0644\u06CC \u0628\u06CC\u0634 \u0627\u0632 \u062D\u062F \u0645\u062C\u0627\u0632 \u0627\u0633\u062A. \u0644\u0637\u0641\u0627\u064B \u06A9\u0645\u06CC \u0628\u0639\u062F \u062F\u0648\u0628\u0627\u0631\u0647 \u062A\u0644\u0627\u0634 \u0646\u0645\u0627\u06CC\u06CC\u062F." });
+  }
+  bucket.count++;
+  next();
+};
+app.use(generalRateLimiter);
+var aiRateLimiter = (req, res, next) => {
+  const ip = getClientIp(req);
+  const now = Date.now();
+  const bucket = rateLimits.ai.get(ip);
+  if (!bucket || now > bucket.resetAt) {
+    rateLimits.ai.set(ip, { count: 1, resetAt: now + 5 * 60 * 1e3 });
+    return next();
+  }
+  if (bucket.count >= 15) {
+    return res.status(429).json({ error: "\u0633\u0642\u0641 \u0645\u062C\u0627\u0632 \u0627\u0631\u0632\u06CC\u0627\u0628\u06CC \u0647\u0648\u0634 \u0645\u0635\u0646\u0648\u0639\u06CC \u0628\u0631\u0627\u06CC \u0622\u062F\u0631\u0633 \u0634\u0645\u0627 \u062A\u06A9\u0645\u06CC\u0644 \u0634\u062F\u0647 \u0627\u0633\u062A. \u0644\u0637\u0641\u0627\u064B \u0686\u0646\u062F \u062F\u0642\u06CC\u0642\u0647 \u062F\u06CC\u06AF\u0631 \u0634\u06A9\u06CC\u0628\u0627 \u0628\u0627\u0634\u06CC\u062F." });
+  }
+  bucket.count++;
+  next();
+};
 app.get(["/api", "/api/health"], (req, res) => {
   return res.json({
     status: "ok",
@@ -1055,6 +1183,30 @@ app.post("/api/auth/send-otp", async (req, res) => {
     if (normPhone.length < 10 || !normPhone.startsWith("09")) {
       return res.status(400).json({ error: "\u0634\u0645\u0627\u0631\u0647 \u062A\u0644\u0641\u0646 \u0647\u0645\u0631\u0627\u0647 \u0648\u0627\u0631\u062F \u0634\u062F\u0647 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A. (\u0645\u062B\u0627\u0644: \u06F0\u06F9\u06F1\u06F2\u06F3\u06F4\u06F5\u06F6\u06F7\u06F8\u06F9)" });
     }
+    const now = Date.now();
+    const sendRecord = rateLimits.otpSend.get(normPhone);
+    if (sendRecord) {
+      if (now - sendRecord.lastSentAt < 60 * 1e3) {
+        const remainingSec = Math.ceil((60 * 1e3 - (now - sendRecord.lastSentAt)) / 1e3);
+        return res.status(429).json({
+          error: `\u0644\u0637\u0641\u0627\u064B ${remainingSec} \u062B\u0627\u0646\u06CC\u0647 \u062F\u06CC\u06AF\u0631 \u0642\u0628\u0644 \u0627\u0632 \u062F\u0631\u062E\u0648\u0627\u0633\u062A \u0645\u062C\u062F\u062F \u067E\u06CC\u0627\u0645\u06A9 \u0634\u06A9\u06CC\u0628\u0627 \u0628\u0627\u0634\u06CC\u062F.`
+        });
+      }
+      if (now < sendRecord.resetAt && sendRecord.hourlyCount >= 5) {
+        return res.status(429).json({
+          error: "\u0633\u0642\u0641 \u0645\u062C\u0627\u0632 \u0627\u0631\u0633\u0627\u0644 \u067E\u06CC\u0627\u0645\u06A9 \u062F\u0631 \u0627\u06CC\u0646 \u0633\u0627\u0639\u062A \u062A\u06A9\u0645\u06CC\u0644 \u0634\u062F\u0647 \u0627\u0633\u062A. \u0644\u0637\u0641\u0627\u064B \u0633\u0627\u0639\u062A\u06CC \u062F\u06CC\u06AF\u0631 \u0645\u0631\u0627\u062C\u0639\u0647 \u0641\u0631\u0645\u0627\u06CC\u06CC\u062F."
+        });
+      }
+      sendRecord.lastSentAt = now;
+      sendRecord.hourlyCount = now > sendRecord.resetAt ? 1 : sendRecord.hourlyCount + 1;
+      if (now > sendRecord.resetAt) sendRecord.resetAt = now + 60 * 60 * 1e3;
+    } else {
+      rateLimits.otpSend.set(normPhone, {
+        lastSentAt: now,
+        hourlyCount: 1,
+        resetAt: now + 60 * 60 * 1e3
+      });
+    }
     const { code, expiresAt } = await createOtp(normPhone);
     const smsResult = await sendOtpSms(normPhone, code);
     if (!smsResult.success && !smsResult.simulated) {
@@ -1095,10 +1247,23 @@ app.post("/api/auth/verify-otp", async (req, res) => {
     }
     const normPhone = normalizePhoneNumber(phoneNumber);
     const cleanCode = String(code).trim();
-    const isValid = cleanCode === "12345" || await verifyOtpCode(normPhone, cleanCode);
+    const now = Date.now();
+    const verifyRecord = rateLimits.otpVerify.get(normPhone);
+    if (verifyRecord && now < verifyRecord.lockUntil) {
+      const waitMin = Math.ceil((verifyRecord.lockUntil - now) / 6e4);
+      return res.status(429).json({
+        error: `\u062A\u0639\u062F\u0627\u062F \u062A\u0644\u0627\u0634\u200C\u0647\u0627\u06CC \u0646\u0627\u0645\u0648\u0641\u0642 \u0628\u06CC\u0634 \u0627\u0632 \u062D\u062F \u0645\u062C\u0627\u0632 \u0628\u0648\u062F\u0647 \u0627\u0633\u062A. \u0644\u0637\u0641\u0627\u064B ${waitMin} \u062F\u0642\u06CC\u0642\u0647 \u062F\u06CC\u06AF\u0631 \u062F\u0648\u0628\u0627\u0631\u0647 \u0627\u0645\u062A\u062D\u0627\u0646 \u06A9\u0646\u06CC\u062F.`
+      });
+    }
+    const isDevMockPhone = (process.env.NODE_ENV !== "production" || process.env.ALLOW_SIMULATED_OTP === "true") && normPhone === "09120000000";
+    const isValid = isDevMockPhone && cleanCode === "12345" || await verifyOtpCode(normPhone, cleanCode);
     if (!isValid) {
+      const currentAttempts = (verifyRecord?.attempts || 0) + 1;
+      const lockUntil = currentAttempts >= 5 ? now + 15 * 60 * 1e3 : 0;
+      rateLimits.otpVerify.set(normPhone, { attempts: currentAttempts, lockUntil });
       return res.status(400).json({ error: "\u06A9\u062F \u062A\u0623\u06CC\u06CC\u062F \u0648\u0627\u0631\u062F \u0634\u062F\u0647 \u0646\u0627\u062F\u0631\u0633\u062A \u0627\u0633\u062A \u06CC\u0627 \u0645\u0646\u0642\u0636\u06CC \u0634\u062F\u0647 \u0627\u0633\u062A." });
     }
+    rateLimits.otpVerify.delete(normPhone);
     const user = await findOrCreateUser(normPhone, fullName);
     const { token, expiresAt } = await createSession(user.id);
     return res.json({
@@ -1229,8 +1394,9 @@ app.delete("/api/user/assessments/:id", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: "\u062E\u0637\u0627 \u062F\u0631 \u062D\u0630\u0641 \u067E\u0631\u0648\u0646\u062F\u0647." });
   }
 });
-app.get("/api/payment/config", (req, res) => {
+app.get("/api/payment/config", (_req, res) => {
   const priceTomans = getAssessmentPriceTomans();
+  const autoUnlockAllowed = process.env.AUTO_UNLOCK_CARD_TO_CARD === "true" && process.env.NODE_ENV === "development";
   return res.json({
     amountTomans: priceTomans,
     amountRials: priceTomans * 10,
@@ -1238,7 +1404,7 @@ app.get("/api/payment/config", (req, res) => {
     cardHolder: process.env.CARD_HOLDER || "\u0628\u0647 \u0646\u0627\u0645 \u0645\u062F\u06CC\u0631\u06CC\u062A \u0633\u0627\u0645\u0627\u0646\u0647 \u06A9\u0648\u0686\u06CC\u0641\u0627\u06CC",
     hasOnlineGateway: Boolean(process.env.ZIBAL_MERCHANT_KEY || process.env.MERCHANT_ID || "6addde0e944acf62f5fd1438"),
     gatewayName: "\u062F\u0631\u06AF\u0627\u0647 \u067E\u0631\u062F\u0627\u062E\u062A \u0632\u06CC\u0628\u0627\u0644 (\u0634\u0627\u067E\u0631\u06A9)",
-    autoUnlockCardToCard: process.env.AUTO_UNLOCK_CARD_TO_CARD !== "false"
+    autoUnlockCardToCard: autoUnlockAllowed
   });
 });
 app.post("/api/payment/card-to-card", authMiddleware, async (req, res) => {
@@ -1247,7 +1413,7 @@ app.post("/api/payment/card-to-card", authMiddleware, async (req, res) => {
     if (!cardLastDigits || String(cardLastDigits).trim().length < 4) {
       return res.status(400).json({ error: "\u0644\u0637\u0641\u0627\u064B \u062D\u062F\u0627\u0642\u0644 \u06F4 \u0631\u0642\u0645 \u0622\u062E\u0631 \u06A9\u0627\u0631\u062A \u06CC\u0627 \u0634\u0645\u0627\u0631\u0647 \u067E\u06CC\u06AF\u06CC\u0631\u06CC \u062A\u0631\u0627\u06A9\u0646\u0634 \u0631\u0627 \u0648\u0627\u0631\u062F \u06A9\u0646\u06CC\u062F." });
     }
-    const autoUnlock = process.env.AUTO_UNLOCK_CARD_TO_CARD !== "false";
+    const autoUnlock = process.env.AUTO_UNLOCK_CARD_TO_CARD === "true" && process.env.ALLOW_INSECURE_CARD_AUTO_UNLOCK === "true";
     const paymentRef = (transactionRef || `C2C-${Date.now()}`).trim();
     const status = autoUnlock ? "paid" : "pending_verification";
     const isPaid = autoUnlock;
@@ -1261,7 +1427,7 @@ app.post("/api/payment/card-to-card", authMiddleware, async (req, res) => {
     console.log(`[PAYMENT] \u06A9\u0627\u0631\u062A\u200C\u0628\u0647\u200C\u06A9\u0627\u0631\u062A \u062B\u0628\u062A \u0634\u062F \u0628\u0631\u0627\u06CC ${req.user.phoneNumber} (\u0648\u0636\u0639\u06CC\u062A: ${status}, \u06A9\u062F: ${cardLastDigits})`);
     return res.json({
       success: true,
-      message: autoUnlock ? "\u067E\u0631\u062F\u0627\u062E\u062A \u0634\u0645\u0627 \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u062B\u0628\u062A \u0634\u062F \u0648 \u0642\u0641\u0644 \u06A9\u0627\u0645\u0644 \u067E\u0631\u0648\u0646\u062F\u0647\u200C\u0647\u0627\u06CC \u0645\u0647\u0627\u062C\u0631\u062A\u06CC \u0634\u0645\u0627 \u0628\u0644\u0627\u0641\u0627\u0635\u0644\u0647 \u0628\u0627\u0632 \u0634\u062F!" : "\u0627\u0637\u0644\u0627\u0639\u0627\u062A \u0641\u06CC\u0634 \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u062B\u0628\u062A \u0634\u062F \u0648 \u067E\u0631\u0648\u0646\u062F\u0647 \u0634\u0645\u0627 \u062D\u062F\u0627\u06A9\u062B\u0631 \u062A\u0627 \u06F1\u06F0 \u062F\u0642\u06CC\u0642\u0647 \u062F\u06CC\u06AF\u0631 \u067E\u0633 \u0627\u0632 \u062A\u0637\u0628\u06CC\u0642 \u0628\u0627\u0646\u06A9\u06CC \u0641\u0639\u0627\u0644 \u062E\u0648\u0627\u0647\u062F \u0634\u062F.",
+      message: autoUnlock ? "\u067E\u0631\u062F\u0627\u062E\u062A \u0634\u0645\u0627 \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u062B\u0628\u062A \u0634\u062F \u0648 \u062F\u0633\u062A\u0631\u0633\u06CC \u06A9\u0627\u0645\u0644 \u067E\u0631\u0648\u0646\u062F\u0647 \u0641\u0639\u0627\u0644 \u06AF\u0631\u062F\u06CC\u062F." : "\u0627\u0637\u0644\u0627\u0639\u0627\u062A \u0641\u06CC\u0634 \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u062B\u0628\u062A \u0634\u062F \u0648 \u067E\u0631\u0648\u0646\u062F\u0647 \u0634\u0645\u0627 \u067E\u0633 \u0627\u0632 \u062A\u0637\u0628\u06CC\u0642 \u0628\u0627\u0646\u06A9\u06CC \u062A\u0648\u0633\u0637 \u0645\u062F\u06CC\u0631\u06CC\u062A \u0641\u0639\u0627\u0644 \u062E\u0648\u0627\u0647\u062F \u0634\u062F.",
       user: updatedUser,
       isPaid: autoUnlock
     });
@@ -1271,19 +1437,26 @@ app.post("/api/payment/card-to-card", authMiddleware, async (req, res) => {
   }
 });
 app.post("/api/payment/instant-unlock", authMiddleware, async (req, res) => {
+  const adminKey = req.headers["x-admin-key"];
+  const isAdmin = adminKey === (process.env.ADMIN_PASSWORD || "koochify2026");
+  const isDevAllowed = process.env.NODE_ENV === "development" && process.env.ALLOW_DEV_INSTANT_UNLOCK === "true";
+  if (!isAdmin && !isDevAllowed) {
+    return res.status(403).json({
+      error: "\u0639\u0645\u0644\u06CC\u0627\u062A \u063A\u06CC\u0631\u0645\u062C\u0627\u0632 \u0627\u0633\u062A. \u062F\u0633\u062A\u0631\u0633\u06CC \u06A9\u0627\u0645\u0644 \u0645\u0646\u062D\u0635\u0631\u0627\u064B \u067E\u0633 \u0627\u0632 \u067E\u0631\u062F\u0627\u062E\u062A \u062F\u0631 \u062F\u0631\u06AF\u0627\u0647 \u0628\u0627\u0646\u06A9\u06CC \u0634\u0627\u067E\u0631\u06A9 \u06CC\u0627 \u062A\u0623\u06CC\u06CC\u062F \u0645\u062F\u06CC\u0631\u06CC\u062A \u0641\u0639\u0627\u0644 \u0645\u06CC\u200C\u0634\u0648\u062F."
+    });
+  }
   try {
-    const priceTomans = getAssessmentPriceTomans();
     const updatedUser = await updateUserPayment(
       req.user.id,
       true,
       "paid",
-      `SIM-${Date.now()}`,
-      "ONLINE"
+      `ADM-${Date.now()}`,
+      "ADMIN_MANUAL"
     );
-    console.log(`[PAYMENT] \u067E\u0631\u062F\u0627\u062E\u062A \u0622\u0646\u0644\u0627\u06CC\u0646 ${priceTomans.toLocaleString("fa-IR")} \u062A\u0648\u0645\u0627\u0646\u06CC \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u0641\u0639\u0627\u0644 \u0634\u062F \u0628\u0631\u0627\u06CC: ${req.user.phoneNumber}`);
+    console.log(`[ADMIN UNLOCK] \u062F\u0633\u062A\u0631\u0633\u06CC \u06A9\u0627\u0631\u0628\u0631 \u0628\u0627 \u062A\u0623\u06CC\u06CC\u062F \u0645\u062F\u06CC\u0631\u06CC\u062A \u0641\u0639\u0627\u0644 \u0634\u062F: ${req.user.phoneNumber}`);
     return res.json({
       success: true,
-      message: `\u067E\u0631\u062F\u0627\u062E\u062A \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u0627\u0646\u062C\u0627\u0645 \u0634\u062F \u0648 \u062F\u0633\u062A\u0631\u0633\u06CC \u0628\u0647 \u0646\u062A\u0627\u06CC\u062C \u0627\u0631\u0632\u06CC\u0627\u0628\u06CC \u0647\u0648\u0634\u0645\u0646\u062F \u0628\u0627\u0632 \u0634\u062F.`,
+      message: `\u067E\u0631\u062F\u0627\u062E\u062A \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u0641\u0639\u0627\u0644 \u0634\u062F.`,
       user: updatedUser,
       isPaid: true
     });
@@ -1372,9 +1545,27 @@ var handleZibalCallback = async (req, res) => {
     const trackId = req.query.trackId || req.body?.trackId;
     const success = req.query.success || req.body?.success;
     const status = req.query.status || req.body?.status;
-    const userId = req.query.userId || req.body?.userId;
-    console.log(`[ZIBAL CALLBACK] \u0628\u0631\u06AF\u0634\u062A \u0627\u0632 \u062F\u0631\u06AF\u0627\u0647: trackId=${trackId}, success=${success}, status=${status}, userId=${userId}`);
-    if (String(success) === "1" && trackId && userId) {
+    const queryUserId = req.query.userId || req.body?.userId;
+    console.log(`[ZIBAL CALLBACK] \u0628\u0631\u06AF\u0634\u062A \u0627\u0632 \u062F\u0631\u06AF\u0627\u0647: trackId=${trackId}, success=${success}, status=${status}, queryUserId=${queryUserId}`);
+    if (String(success) === "1" && trackId) {
+      let verifiedUserId = null;
+      try {
+        const tx = await getTransactionByTrackId(String(trackId));
+        if (tx && tx.userId) {
+          verifiedUserId = tx.userId;
+          if (tx.status === "verified") {
+            console.log(`[ZIBAL CALLBACK] \u062A\u0631\u0627\u06A9\u0646\u0634 \u0642\u0628\u0644\u0627\u064B \u062A\u0627\u06CC\u06CC\u062F \u0634\u062F\u0647 \u0628\u0648\u062F: trackId=${trackId}`);
+            return res.redirect(`https://koochify.ir/?payment=success&ref=${tx.refNumber || trackId}`);
+          }
+        }
+      } catch (dbErr) {
+        console.error(`[ZIBAL CALLBACK] \u062E\u0637\u0627 \u062F\u0631 \u0628\u0627\u0632\u06CC\u0627\u0628\u06CC \u062A\u0631\u0627\u06A9\u0646\u0634 \u0627\u0632 DB:`, dbErr);
+      }
+      const finalUserId = verifiedUserId || (queryUserId ? String(queryUserId) : null);
+      if (!finalUserId) {
+        console.error(`[ZIBAL CALLBACK SECURITY] \u0647\u06CC\u0686 \u0634\u0646\u0627\u0633\u0647 \u06A9\u0627\u0631\u0628\u0631\u06CC \u0628\u0631\u0627\u06CC trackId=${trackId} \u06CC\u0627\u0641\u062A \u0646\u0634\u062F.`);
+        return res.redirect("https://koochify.ir/?payment=failed&reason=no_user");
+      }
       const merchant = process.env.ZIBAL_MERCHANT_KEY || process.env.MERCHANT_ID || "6addde0e944acf62f5fd1438";
       const verifyRes = await fetch("https://gateway.zibal.ir/v1/verify", {
         method: "POST",
@@ -1389,9 +1580,9 @@ var handleZibalCallback = async (req, res) => {
       if (verifyData?.result === 100 || verifyData?.result === 201) {
         const refNumber = verifyData.refNumber || trackId;
         const cardNumber = verifyData.cardNumber || "";
-        await updateUserPayment(String(userId), true, "paid", String(refNumber), cardNumber);
+        await updateUserPayment(finalUserId, true, "paid", String(refNumber), cardNumber);
         await completePaymentTransaction(String(trackId), String(refNumber), cardNumber, verifyData).catch((e) => console.error("Could not complete payment tx:", e));
-        console.log(`[PAYMENT SUCCESS] \u067E\u0631\u062F\u0627\u062E\u062A \u06A9\u0627\u0631\u0628\u0631 ${userId} \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u062A\u0627\u06CC\u06CC\u062F \u0634\u062F. \u0634\u0645\u0627\u0631\u0647 \u062A\u0631\u0627\u06A9\u0646\u0634: ${refNumber}`);
+        console.log(`[PAYMENT SUCCESS] \u067E\u0631\u062F\u0627\u062E\u062A \u06A9\u0627\u0631\u0628\u0631 ${finalUserId} \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u062A\u0627\u06CC\u06CC\u062F \u0634\u062F. \u0634\u0645\u0627\u0631\u0647 \u062A\u0631\u0627\u06A9\u0646\u0634: ${refNumber}`);
         return res.redirect(`https://koochify.ir/?payment=success&ref=${refNumber}`);
       } else {
         await completePaymentTransaction(String(trackId), "", "", verifyData).catch((e) => console.error("Could not update failed tx:", e));
@@ -1410,11 +1601,15 @@ app.post("/api/payment/zibal/callback", handleZibalCallback);
 app.get("/api/payment/zarinpal/callback", handleZibalCallback);
 app.get("/api/payment/callback", handleZibalCallback);
 app.get("/api/payment/simulate", async (req, res) => {
-  const { userId, authority } = req.query;
-  if (userId) {
-    await updateUserPayment(String(userId), true, "paid", String(authority || `SIM-${Date.now()}`));
-    console.log(`[PAYMENT] \u067E\u0631\u062F\u0627\u062E\u062A \u0622\u0646\u0644\u0627\u06CC\u0646 \u0622\u0632\u0645\u0627\u06CC\u0634\u06CC \u062A\u0627\u06CC\u06CC\u062F \u0634\u062F \u0628\u0631\u0627\u06CC \u06A9\u0627\u0631\u0628\u0631: ${userId}`);
+  if (process.env.NODE_ENV === "production" && process.env.ALLOW_DEV_SIMULATE !== "true") {
+    return res.status(404).send("\u0635\u0641\u062D\u0647 \u0645\u0648\u0631\u062F \u0646\u0638\u0631 \u06CC\u0627\u0641\u062A \u0646\u0634\u062F.");
   }
+  const { userId, authority, adminSecret } = req.query;
+  if (!userId || adminSecret !== (process.env.ADMIN_PASSWORD || "koochify2026")) {
+    return res.status(403).send("\u062F\u0633\u062A\u0631\u0633\u06CC \u0628\u0647 \u0634\u0628\u06CC\u0647\u200C\u0633\u0627\u0632 \u067E\u0631\u062F\u0627\u062E\u062A \u062A\u0646\u0647\u0627 \u062F\u0631 \u062D\u0627\u0644\u062A \u062A\u0648\u0633\u0639\u0647 \u0628\u0627 \u0631\u0645\u0632 \u0639\u0628\u0648\u0631 \u0645\u0639\u062A\u0628\u0631 \u0645\u062F\u06CC\u0631\u06CC\u062A \u0645\u062C\u0627\u0632 \u0627\u0633\u062A.");
+  }
+  await updateUserPayment(String(userId), true, "paid", String(authority || `SIM-${Date.now()}`));
+  console.log(`[PAYMENT] \u067E\u0631\u062F\u0627\u062E\u062A \u0622\u0646\u0644\u0627\u06CC\u0646 \u0622\u0632\u0645\u0627\u06CC\u0634\u06CC \u062A\u0627\u06CC\u06CC\u062F \u0634\u062F \u0628\u0631\u0627\u06CC \u06A9\u0627\u0631\u0628\u0631: ${userId}`);
   return res.redirect("/?payment=success");
 });
 var ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "koochify2026";
@@ -1491,7 +1686,7 @@ app.post("/api/admin/price", adminAuthMiddleware, (req, res) => {
     return res.status(500).json({ error: "\u062E\u0637\u0627 \u062F\u0631 \u0628\u0647\u200C\u0631\u0648\u0632\u0631\u0633\u0627\u0646\u06CC \u0645\u0628\u0644\u063A \u0627\u0631\u0632\u06CC\u0627\u0628\u06CC." });
   }
 });
-app.post("/api/assessment/groq-evaluate", async (req, res) => {
+app.post("/api/assessment/groq-evaluate", aiRateLimiter, async (req, res) => {
   try {
     const profile = req.body;
     if (!profile) {
@@ -1505,7 +1700,7 @@ app.post("/api/assessment/groq-evaluate", async (req, res) => {
     return res.status(500).json({ error: "\u062E\u0637\u0627 \u062F\u0631 \u0627\u0631\u0632\u06CC\u0627\u0628\u06CC \u0647\u0648\u0634 \u0645\u0635\u0646\u0648\u0639\u06CC Groq." });
   }
 });
-app.post("/api/analyze-immigration", async (req, res) => {
+app.post("/api/analyze-immigration", aiRateLimiter, async (req, res) => {
   const userProfile = req.body;
   try {
     console.log("Analyzing immigration profile for:", userProfile?.fullName);
