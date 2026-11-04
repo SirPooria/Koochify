@@ -40,6 +40,10 @@ export interface AdminLeadItem {
   latestRoute: string | null;
   latestScore: number | null;
   latestGoal?: string | null;
+  latestTxTrackId?: string | null;
+  latestTxRef?: string | null;
+  latestTxStatus?: "pending" | "verified" | "failed" | "cancelled" | null;
+  latestTxAmount?: number | null;
 }
 
 export interface SavedAssessmentSummary {
@@ -511,7 +515,7 @@ export async function requestOnlinePayment(): Promise<{
     throw new Error("لطفاً ابتدا با شماره همراه خود وارد حساب کاربری شوید.");
   }
 
-  const res = await fetch("/api/payment/zarinpal/request", {
+  const res = await fetch("/api/payment/zibal/request", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -525,7 +529,7 @@ export async function requestOnlinePayment(): Promise<{
       clearAuthSession();
       throw new Error("نشست کاربری شما منقضی شده است. لطفاً مجدداً با شماره موبایل وارد شوید.");
     }
-    throw new Error(data?.error || "خطا در اتصال به درگاه پرداخت");
+    throw new Error(data?.error || "خطا در اتصال به درگاه پرداخت شاپرک (زیبال)");
   }
 
   return data;

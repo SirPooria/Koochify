@@ -264,31 +264,33 @@ export default function App() {
 
     setIsCalculating(false);
 
-    // Strict Pay-per-Assessment Policy:
-    // If user has not paid for this evaluation, gate to payment screen and DO NOT save to DB
-    if (!freshUser?.isPaid) {
-      // Persist assessment to localStorage so it survives payment gateway redirect (full page reload)
-      try {
-        localStorage.setItem("koochify_pending_profile", JSON.stringify(profile));
-        localStorage.setItem("koochify_pending_results", JSON.stringify(summary));
-        console.log("[PERSIST] پرونده ارزیابی قبل از پرداخت در localStorage ذخیره شد.");
-      } catch (err) {
-        console.warn("خطا در ذخیره موقت پرونده:", err);
-      }
-      setActiveTab("payment");
-    } else {
-      // User is paid: save assessment to DB and show results
+    // Always persist completed assessment to database for the authenticated user so it's tied to their dossier and visible in Admin CRM
+    if (freshUser) {
       try {
         await saveAssessmentToCloud(profile, summary);
         setIsSavedToCloud(true);
-        // Clear pending data from localStorage since it's safely in the database now
-        try {
-          localStorage.removeItem("koochify_pending_profile");
-          localStorage.removeItem("koochify_pending_results");
-        } catch { }
+        console.log("[DOSSIER] پرونده ارزیابی با موفقیت در دیتابیس ابری ثبت گردید.");
       } catch (err) {
         console.warn("Direct save to database failed:", err);
       }
+    }
+
+    // Also persist assessment to localStorage so it survives payment gateway redirect (full page reload)
+    try {
+      localStorage.setItem("koochify_pending_profile", JSON.stringify(profile));
+      localStorage.setItem("koochify_pending_results", JSON.stringify(summary));
+    } catch (err) {
+      console.warn("خطا در ذخیره موقت پرونده:", err);
+    }
+
+    if (!freshUser?.isPaid) {
+      setActiveTab("payment");
+    } else {
+      // Clear pending data from localStorage since it's safely in the database now
+      try {
+        localStorage.removeItem("koochify_pending_profile");
+        localStorage.removeItem("koochify_pending_results");
+      } catch { }
       setActiveTab("results");
     }
     window.scrollTo({ top: 0, behavior: "smooth" });

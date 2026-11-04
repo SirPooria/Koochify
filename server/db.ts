@@ -34,6 +34,10 @@ export interface AdminLeadItem {
   latestRoute: string | null;
   latestScore: number | null;
   latestGoal?: string | null;
+  latestTxTrackId?: string | null;
+  latestTxRef?: string | null;
+  latestTxStatus?: "pending" | "verified" | "failed" | "cancelled" | null;
+  latestTxAmount?: number | null;
 }
 
 export interface UserAssessmentRecord {
@@ -814,33 +818,51 @@ export async function getTransactionByTrackId(trackId: string): Promise<{
  */
 export async function getAllLeadsForAdmin(): Promise<AdminLeadItem[]> {
   if (supabase) {
-    const { data: users, error } = await supabase
-      .from("users")
-      .select(`
-        id,
-        phone_number,
-        full_name,
-        created_at,
-        last_login_at,
-        is_paid,
-        payment_status,
-        payment_ref,
-        card_last_digits,
-        paid_at,
-        user_assessments (
-          profile_data,
-          results_data,
-          created_at
-        )
-      `)
-      .order("created_at", { ascending: false });
+    const [usersRes, txRes] = await Promise.all([
+      supabase
+        .from("users")
+        .select(`
+          id,
+          phone_number,
+          full_name,
+          created_at,
+          last_login_at,
+          is_paid,
+          payment_status,
+          payment_ref,
+          card_last_digits,
+          paid_at,
+          user_assessments (
+            profile_data,
+            results_data,
+            created_at
+          )
+        `)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("payment_transactions")
+        .select("id, user_id, amount_tomans, gateway, track_id, ref_number, status, created_at, verified_at")
+        .neq("id", "tx_system_settings_config")
+        .order("created_at", { ascending: false }),
+    ]);
 
-    if (error) {
-      console.error("❌ [SUPABASE ERROR] getAllLeadsForAdmin:", error.message);
+    if (usersRes.error) {
+      console.error("❌ [SUPABASE ERROR] getAllLeadsForAdmin:", usersRes.error.message);
       return [];
     }
 
-    return (users || []).map((u: any) => {
+    const users = usersRes.data || [];
+    const transactions = txRes.data || [];
+
+    // Map latest transaction per user
+    const txByUser = new Map<string, any>();
+    for (const tx of transactions) {
+      if (tx.user_id && !txByUser.has(tx.user_id)) {
+        txByUser.set(tx.user_id, tx);
+      }
+    }
+
+    return users.map((u: any) => {
       const assessments = u.user_assessments || [];
       const assessmentsCount = assessments.length;
       let latestDestination: string | null = null;
@@ -861,22 +883,40 @@ export async function getAllLeadsForAdmin(): Promise<AdminLeadItem[]> {
         latestGoal = latestProfile?.migrationGoal || latestResults?.migrationGoal || null;
       }
 
+      const latestTx = txByUser.get(u.id);
+
+      // Determine true payment state across user record and transaction records
+      const isPaid = Boolean(u.is_paid || u.payment_status === "paid" || latestTx?.status === "verified");
+      let paymentStatus: "none" | "pending_verification" | "paid" = (u.payment_status || "none") as any;
+      if (isPaid) {
+        paymentStatus = "paid";
+      } else if (paymentStatus === "pending_verification" || latestTx?.status === "pending") {
+        paymentStatus = "pending_verification";
+      }
+
+      const paymentRef = u.payment_ref || latestTx?.ref_number || latestTx?.track_id || null;
+      const cardDigits = u.card_last_digits || null;
+
       return {
         id: u.id,
         phoneNumber: u.phone_number,
         fullName: u.full_name || "",
         createdAt: u.created_at,
         lastLoginAt: u.last_login_at || null,
-        isPaid: Boolean(u.is_paid),
-        paymentStatus: (u.payment_status || "none") as any,
-        paymentRef: u.payment_ref || null,
-        cardLastDigits: u.card_last_digits || null,
-        paidAt: u.paid_at || null,
+        isPaid,
+        paymentStatus,
+        paymentRef,
+        cardLastDigits: cardDigits,
+        paidAt: u.paid_at || (isPaid && latestTx?.verified_at) || null,
         assessmentsCount,
         latestDestination,
         latestRoute,
         latestScore,
         latestGoal,
+        latestTxTrackId: latestTx?.track_id || null,
+        latestTxRef: latestTx?.ref_number || null,
+        latestTxStatus: latestTx?.status || null,
+        latestTxAmount: latestTx?.amount_tomans || null,
       };
     });
   }

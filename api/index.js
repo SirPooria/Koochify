@@ -509,28 +509,39 @@ async function getTransactionByTrackId(trackId) {
 }
 async function getAllLeadsForAdmin() {
   if (supabase) {
-    const { data: users, error } = await supabase.from("users").select(`
-        id,
-        phone_number,
-        full_name,
-        created_at,
-        last_login_at,
-        is_paid,
-        payment_status,
-        payment_ref,
-        card_last_digits,
-        paid_at,
-        user_assessments (
-          profile_data,
-          results_data,
-          created_at
-        )
-      `).order("created_at", { ascending: false });
-    if (error) {
-      console.error("\u274C [SUPABASE ERROR] getAllLeadsForAdmin:", error.message);
+    const [usersRes, txRes] = await Promise.all([
+      supabase.from("users").select(`
+          id,
+          phone_number,
+          full_name,
+          created_at,
+          last_login_at,
+          is_paid,
+          payment_status,
+          payment_ref,
+          card_last_digits,
+          paid_at,
+          user_assessments (
+            profile_data,
+            results_data,
+            created_at
+          )
+        `).order("created_at", { ascending: false }),
+      supabase.from("payment_transactions").select("id, user_id, amount_tomans, gateway, track_id, ref_number, status, created_at, verified_at").neq("id", "tx_system_settings_config").order("created_at", { ascending: false })
+    ]);
+    if (usersRes.error) {
+      console.error("\u274C [SUPABASE ERROR] getAllLeadsForAdmin:", usersRes.error.message);
       return [];
     }
-    return (users || []).map((u) => {
+    const users = usersRes.data || [];
+    const transactions = txRes.data || [];
+    const txByUser = /* @__PURE__ */ new Map();
+    for (const tx of transactions) {
+      if (tx.user_id && !txByUser.has(tx.user_id)) {
+        txByUser.set(tx.user_id, tx);
+      }
+    }
+    return users.map((u) => {
       const assessments = u.user_assessments || [];
       const assessmentsCount = assessments.length;
       let latestDestination = null;
@@ -549,22 +560,36 @@ async function getAllLeadsForAdmin() {
         }
         latestGoal = latestProfile?.migrationGoal || latestResults?.migrationGoal || null;
       }
+      const latestTx = txByUser.get(u.id);
+      const isPaid = Boolean(u.is_paid || u.payment_status === "paid" || latestTx?.status === "verified");
+      let paymentStatus = u.payment_status || "none";
+      if (isPaid) {
+        paymentStatus = "paid";
+      } else if (paymentStatus === "pending_verification" || latestTx?.status === "pending") {
+        paymentStatus = "pending_verification";
+      }
+      const paymentRef = u.payment_ref || latestTx?.ref_number || latestTx?.track_id || null;
+      const cardDigits = u.card_last_digits || null;
       return {
         id: u.id,
         phoneNumber: u.phone_number,
         fullName: u.full_name || "",
         createdAt: u.created_at,
         lastLoginAt: u.last_login_at || null,
-        isPaid: Boolean(u.is_paid),
-        paymentStatus: u.payment_status || "none",
-        paymentRef: u.payment_ref || null,
-        cardLastDigits: u.card_last_digits || null,
-        paidAt: u.paid_at || null,
+        isPaid,
+        paymentStatus,
+        paymentRef,
+        cardLastDigits: cardDigits,
+        paidAt: u.paid_at || isPaid && latestTx?.verified_at || null,
         assessmentsCount,
         latestDestination,
         latestRoute,
         latestScore,
-        latestGoal
+        latestGoal,
+        latestTxTrackId: latestTx?.track_id || null,
+        latestTxRef: latestTx?.ref_number || null,
+        latestTxStatus: latestTx?.status || null,
+        latestTxAmount: latestTx?.amount_tomans || null
       };
     });
   }
@@ -772,8 +797,9 @@ var DEFAULT_SETTINGS = {
   assessmentPriceTomans: 499e3,
   updatedAt: (/* @__PURE__ */ new Date()).toISOString()
 };
-var cachedSettings = loadSettings();
-function loadSettings() {
+var cachedSettings = { ...DEFAULT_SETTINGS };
+var isInitialized = false;
+function loadLocalFallbackSettings() {
   try {
     if (fs.existsSync(SETTINGS_FILE_PATH)) {
       const raw = fs.readFileSync(SETTINGS_FILE_PATH, "utf-8");
@@ -785,33 +811,82 @@ function loadSettings() {
         };
       }
     }
-  } catch (err) {
-    console.warn("[SETTINGS] Could not read settings file, using defaults:", err);
+  } catch {
   }
   return { ...DEFAULT_SETTINGS };
 }
-function saveSettings(settings) {
+function saveLocalFallbackSettings(settings) {
   try {
     const dir = path.dirname(SETTINGS_FILE_PATH);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
     fs.writeFileSync(SETTINGS_FILE_PATH, JSON.stringify(settings, null, 2), "utf-8");
-  } catch (err) {
-    console.error("[SETTINGS] Could not save settings file:", err);
+  } catch {
   }
 }
-function getAssessmentPriceTomans() {
+cachedSettings = loadLocalFallbackSettings();
+async function refreshSettingsFromDatabase() {
+  if (supabase) {
+    try {
+      const { data, error } = await supabase.from("payment_transactions").select("amount_tomans, raw_response, updated_at").eq("id", "tx_system_settings_config").maybeSingle();
+      if (!error && data) {
+        const price = typeof data.amount_tomans === "number" ? data.amount_tomans : data.raw_response?.assessmentPriceTomans;
+        if (typeof price === "number") {
+          cachedSettings = {
+            assessmentPriceTomans: price,
+            updatedAt: data.raw_response?.updatedAt || data.updated_at || (/* @__PURE__ */ new Date()).toISOString()
+          };
+          isInitialized = true;
+          return cachedSettings;
+        }
+      }
+    } catch (dbErr) {
+      console.warn("[SETTINGS] Could not fetch settings from Supabase, using cache:", dbErr);
+    }
+  }
+  isInitialized = true;
+  return cachedSettings;
+}
+async function getAssessmentPriceTomans() {
+  if (!isInitialized) {
+    await refreshSettingsFromDatabase();
+  }
   return cachedSettings.assessmentPriceTomans;
 }
-function setAssessmentPriceTomans(price) {
+async function setAssessmentPriceTomans(price) {
   const safePrice = Math.max(0, Math.round(price));
+  const now = (/* @__PURE__ */ new Date()).toISOString();
   cachedSettings = {
     assessmentPriceTomans: safePrice,
-    updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+    updatedAt: now
   };
-  saveSettings(cachedSettings);
-  console.log(`[SETTINGS] \u062A\u0639\u0631\u0641\u0647 \u0627\u0631\u0632\u06CC\u0627\u0628\u06CC \u0647\u0648\u0634\u0645\u0646\u062F \u0628\u0647\u200C\u0631\u0648\u0632\u0631\u0633\u0627\u0646\u06CC \u0634\u062F: ${safePrice.toLocaleString("fa-IR")} \u062A\u0648\u0645\u0627\u0646`);
+  isInitialized = true;
+  saveLocalFallbackSettings(cachedSettings);
+  if (supabase) {
+    try {
+      const { error } = await supabase.from("payment_transactions").upsert({
+        id: "tx_system_settings_config",
+        user_id: null,
+        amount_tomans: safePrice,
+        amount_rials: safePrice * 10,
+        gateway: "system_settings",
+        track_id: "SYSTEM_SETTINGS",
+        status: "verified",
+        raw_response: {
+          assessmentPriceTomans: safePrice,
+          updatedAt: now
+        }
+      });
+      if (error) {
+        console.error("\u274C [SUPABASE ERROR] Failed to persist system settings:", error.message);
+      } else {
+        console.log(`\u26A1 [SETTINGS] \u062A\u0639\u0631\u0641\u0647 \u0627\u0631\u0632\u06CC\u0627\u0628\u06CC \u062F\u0631 \u067E\u0627\u06CC\u06AF\u0627\u0647 \u062F\u0627\u062F\u0647 \u0630\u062E\u06CC\u0631\u0647 \u0634\u062F: ${safePrice.toLocaleString("fa-IR")} \u062A\u0648\u0645\u0627\u0646`);
+      }
+    } catch (err) {
+      console.error("\u274C [SETTINGS] Exception persisting settings to Supabase:", err);
+    }
+  }
   return safePrice;
 }
 
@@ -1395,8 +1470,8 @@ app.delete("/api/user/assessments/:id", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: "\u062E\u0637\u0627 \u062F\u0631 \u062D\u0630\u0641 \u067E\u0631\u0648\u0646\u062F\u0647." });
   }
 });
-app.get("/api/payment/config", (_req, res) => {
-  const priceTomans = getAssessmentPriceTomans();
+app.get("/api/payment/config", async (_req, res) => {
+  const priceTomans = await getAssessmentPriceTomans();
   const autoUnlockAllowed = process.env.AUTO_UNLOCK_CARD_TO_CARD === "true" && process.env.NODE_ENV === "development";
   return res.json({
     amountTomans: priceTomans,
@@ -1523,7 +1598,7 @@ async function callZibalApi(action, payload) {
 }
 var handleOnlinePaymentRequest = async (req, res) => {
   try {
-    const priceTomans = getAssessmentPriceTomans();
+    const priceTomans = await getAssessmentPriceTomans();
     const amountRials = priceTomans * 10;
     if (priceTomans === 0) {
       const updatedUser = await updateUserPayment(
@@ -1715,13 +1790,13 @@ app.post("/api/admin/unlock-user", adminAuthMiddleware, async (req, res) => {
     return res.status(500).json({ error: "\u062E\u0637\u0627 \u062F\u0631 \u062A\u063A\u06CC\u06CC\u0631 \u0648\u0636\u0639\u06CC\u062A \u062F\u0633\u062A\u0631\u0633\u06CC \u06A9\u0627\u0631\u0628\u0631." });
   }
 });
-app.post("/api/admin/price", adminAuthMiddleware, (req, res) => {
+app.post("/api/admin/price", adminAuthMiddleware, async (req, res) => {
   try {
     const { priceTomans } = req.body;
     if (typeof priceTomans !== "number" || isNaN(priceTomans) || priceTomans < 0) {
       return res.status(400).json({ error: "\u0644\u0637\u0641\u0627\u064B \u0645\u0628\u0644\u063A \u0645\u0639\u062A\u0628\u0631\u06CC \u0628\u0647 \u062A\u0648\u0645\u0627\u0646 \u0648\u0627\u0631\u062F \u06A9\u0646\u06CC\u062F." });
     }
-    const updatedPrice = setAssessmentPriceTomans(priceTomans);
+    const updatedPrice = await setAssessmentPriceTomans(priceTomans);
     return res.json({
       success: true,
       priceTomans: updatedPrice,

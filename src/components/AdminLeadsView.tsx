@@ -175,8 +175,10 @@ export default function AdminLeadsView({ onBackToApp }: AdminLeadsViewProps) {
   // Stats & Big Data Mining Metrics
   const totalLeads = leads.length;
   const paidLeads = leads.filter((l) => l.isPaid).length;
-  const pendingLeads = leads.filter((l) => l.paymentStatus === "pending_verification").length;
-  const totalRevenueTomans = paidLeads * currentPriceTomans;
+  const pendingLeads = leads.filter((l) => l.paymentStatus === "pending_verification" || l.latestTxStatus === "pending").length;
+  const totalRevenueTomans = leads
+    .filter((l) => l.isPaid)
+    .reduce((sum, l) => sum + (l.latestTxAmount || currentPriceTomans), 0);
   const completedFormsCount = leads.filter((l) => (l.assessmentsCount || 0) > 0 || l.latestDestination).length;
   const conversionRate = totalLeads > 0 ? ((paidLeads / totalLeads) * 100).toFixed(1) : "0";
 
@@ -754,10 +756,10 @@ export default function AdminLeadsView({ onBackToApp }: AdminLeadsViewProps) {
                             <CheckCircle2 className="w-3.5 h-3.5" />
                             پرداخت‌شده
                           </span>
-                        ) : lead.paymentStatus === "pending_verification" ? (
+                        ) : lead.paymentStatus === "pending_verification" || lead.latestTxStatus === "pending" ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 text-[11px] font-bold">
                             <Clock className="w-3.5 h-3.5" />
-                            در انتظار تأیید کارت
+                            {lead.latestTxTrackId ? "در انتظار پرداخت درگاه زیبال" : "در انتظار تأیید کارت"}
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 text-[11px] font-semibold">
@@ -771,6 +773,14 @@ export default function AdminLeadsView({ onBackToApp }: AdminLeadsViewProps) {
                         {lead.cardLastDigits ? (
                           <span className="bg-slate-100 px-2 py-1 rounded-lg border border-slate-200 text-xs font-bold text-emerald-900">
                             {lead.cardLastDigits}
+                          </span>
+                        ) : lead.latestTxTrackId ? (
+                          <span className="bg-blue-50 text-blue-900 border border-blue-200 px-2 py-1 rounded-lg text-[11px] font-bold" title="کد پیگیری درگاه پرداخت زیبال">
+                            زیبال: {lead.latestTxTrackId}
+                          </span>
+                        ) : lead.paymentRef ? (
+                          <span className="bg-slate-100 px-2 py-1 rounded-lg border border-slate-200 text-xs font-bold text-slate-800">
+                            {lead.paymentRef}
                           </span>
                         ) : (
                           <span className="text-slate-400 text-[11px]">—</span>

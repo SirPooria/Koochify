@@ -447,8 +447,8 @@ app.delete("/api/user/assessments/:id", authMiddleware, async (req: any, res) =>
 
 // --- Payment Routes ---
 // Get Payment Configuration
-app.get("/api/payment/config", (_req, res) => {
-  const priceTomans = getAssessmentPriceTomans();
+app.get("/api/payment/config", async (_req, res) => {
+  const priceTomans = await getAssessmentPriceTomans();
   const autoUnlockAllowed =
     process.env.AUTO_UNLOCK_CARD_TO_CARD === "true" && process.env.NODE_ENV === "development";
 
@@ -603,7 +603,7 @@ async function callZibalApi(action: "request" | "verify", payload: any): Promise
 // Online Payment Request (Zibal IPG Gateway)
 const handleOnlinePaymentRequest = async (req: any, res: any) => {
   try {
-    const priceTomans = getAssessmentPriceTomans();
+    const priceTomans = await getAssessmentPriceTomans();
     const amountRials = priceTomans * 10;
 
     // Free test mode bypass (when admin sets price to 0)
@@ -845,13 +845,13 @@ app.post("/api/admin/unlock-user", adminAuthMiddleware, async (req, res) => {
 });
 
 // Admin Update Assessment Price
-app.post("/api/admin/price", adminAuthMiddleware, (req, res) => {
+app.post("/api/admin/price", adminAuthMiddleware, async (req, res) => {
   try {
     const { priceTomans } = req.body;
     if (typeof priceTomans !== "number" || isNaN(priceTomans) || priceTomans < 0) {
       return res.status(400).json({ error: "لطفاً مبلغ معتبری به تومان وارد کنید." });
     }
-    const updatedPrice = setAssessmentPriceTomans(priceTomans);
+    const updatedPrice = await setAssessmentPriceTomans(priceTomans);
     return res.json({
       success: true,
       priceTomans: updatedPrice,
