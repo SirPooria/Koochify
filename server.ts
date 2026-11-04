@@ -26,6 +26,7 @@ import { sendOtpSms } from "./server/smsService.ts";
 import { getAssessmentPriceTomans, setAssessmentPriceTomans } from "./server/settings.ts";
 import { generateGroqImmigrationAnalysis } from "./server/groqService.ts";
 import crypto from "node:crypto";
+import https from "node:https";
 
 dotenv.config();
 
@@ -536,6 +537,69 @@ app.post("/api/payment/instant-unlock", authMiddleware, async (req: any, res) =>
   }
 });
 
+// Helper to execute Zibal API requests via proxy with seamless direct fallback
+async function callZibalApi(action: "request" | "verify", payload: any): Promise<any> {
+  // Step 1: Attempt via custom proxy
+  try {
+    const postData = JSON.stringify(payload);
+    const proxyResult = await new Promise<any>((resolve, reject) => {
+      const proxyReq = https.request(
+        {
+          hostname: "proxy.koochify.ir",
+          port: 443,
+          path: `/proxy.php?action=${action}`,
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Content-Length": Buffer.byteLength(postData),
+            "X-Proxy-Token": "my-secret-123",
+          },
+          rejectUnauthorized: false,
+          timeout: 6000,
+        },
+        (res) => {
+          let raw = "";
+          res.on("data", (chunk) => (raw += chunk));
+          res.on("end", () => {
+            if (res.statusCode === 200) {
+              try {
+                resolve(JSON.parse(raw));
+              } catch {
+                reject(new Error(`Proxy returned non-JSON HTTP 200: ${raw.slice(0, 100)}`));
+              }
+            } else {
+              reject(new Error(`Proxy returned HTTP ${res.statusCode}`));
+            }
+          });
+        }
+      );
+
+      proxyReq.on("error", reject);
+      proxyReq.on("timeout", () => {
+        proxyReq.destroy();
+        reject(new Error("Proxy timeout (6s)"));
+      });
+      proxyReq.write(postData);
+      proxyReq.end();
+    });
+
+    console.log(`[ZIBAL PROXY SUCCESS] ارتباط با پروکسی برای عملیات ${action} موفق بود.`);
+    return proxyResult;
+  } catch (proxyErr: any) {
+    console.warn(`[ZIBAL PROXY FALLBACK] ارتباط با پروکسی ناموفق بود (${proxyErr.message}). اتصال مستقیم به درگاه زیبال...`);
+  }
+
+  // Step 2: Fallback to direct official Zibal API
+  const directUrl = `https://gateway.zibal.ir/v1/${action}`;
+  const directRes = await fetch(directUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  return await directRes.json();
+}
+
 // Online Payment Request (Zibal IPG Gateway)
 const handleOnlinePaymentRequest = async (req: any, res: any) => {
   try {
@@ -574,23 +638,15 @@ const handleOnlinePaymentRequest = async (req: any, res: any) => {
 
     console.log(`[ZIBAL REQUEST] شروع درخواست پرداخت به زیبال برای ${req.user.phoneNumber} با مرچنت ${merchant} (مبلغ: ${priceTomans} تومان)`);
 
-    const zibalRes = await fetch("https://proxy.koochify.ir/proxy.php?action=request", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Proxy-Token": "my-secret-123",
-      },
-      body: JSON.stringify({
-        merchant: merchant,
-        amount: amountRials,
-        callbackUrl: callbackUrl,
-        description: `هزینه ارزیابی هوشمند پرونده مهاجرت کوچیفای - ${req.user.phoneNumber}`,
-        orderId: orderId,
-        mobile: req.user.phoneNumber ? req.user.phoneNumber.replace(/^(\+98|0098)/, "0") : undefined,
-      }),
+    const zibalData: any = await callZibalApi("request", {
+      merchant: merchant,
+      amount: amountRials,
+      callbackUrl: callbackUrl,
+      description: `هزینه ارزیابی هوشمند پرونده مهاجرت کوچیفای - ${req.user.phoneNumber}`,
+      orderId: orderId,
+      mobile: req.user.phoneNumber ? req.user.phoneNumber.replace(/^(\+98|0098)/, "0") : undefined,
     });
 
-    const zibalData: any = await zibalRes.json();
     console.log("[ZIBAL RESPONSE]", zibalData);
 
     if (zibalData?.result === 100 && zibalData?.trackId) {
@@ -674,19 +730,10 @@ const handleZibalCallback = async (req: any, res: any) => {
         process.env.MERCHANT_ID ||
         "6addde0e944acf62f5fd1438";
 
-      const verifyRes = await fetch("https://proxy.koochify.ir/proxy.php?action=verify", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Proxy-Token": "my-secret-123",
-        },
-        body: JSON.stringify({
-          merchant: merchant,
-          trackId: Number(trackId),
-        }),
+      const verifyData: any = await callZibalApi("verify", {
+        merchant: merchant,
+        trackId: Number(trackId),
       });
-
-      const verifyData: any = await verifyRes.json();
       console.log("[ZIBAL VERIFY RESULT]", verifyData);
 
       // Result 100: Paid and verified; 201: Already verified

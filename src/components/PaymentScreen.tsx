@@ -14,25 +14,29 @@ import {
   Flame,
   Check,
   Award,
-  Globe
+  Globe,
+  Phone
 } from "lucide-react";
 import {
   AuthUser,
   fetchPaymentConfig,
   requestOnlinePayment,
-  PaymentConfig
+  PaymentConfig,
+  getStoredToken
 } from "../services/authService";
 
 interface PaymentScreenProps {
   user: AuthUser | null;
   onPaymentSuccess: (user: AuthUser) => void;
   onBackToEditForm?: () => void;
+  onOpenAuth?: () => void;
 }
 
 export default function PaymentScreen({
   user,
   onPaymentSuccess,
   onBackToEditForm,
+  onOpenAuth,
 }: PaymentScreenProps) {
   const [config, setConfig] = useState<PaymentConfig | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -46,6 +50,17 @@ export default function PaymentScreen({
 
   const handleInstantOnlinePay = async () => {
     setErrorMessage(null);
+
+    const token = getStoredToken();
+    if (!user || !token) {
+      if (onOpenAuth) {
+        onOpenAuth();
+      } else {
+        setErrorMessage("لطفاً ابتدا با شماره همراه خود وارد حساب کاربری شوید.");
+      }
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -60,8 +75,15 @@ export default function PaymentScreen({
       }
       throw new Error("آدرس معتبری از درگاه پرداخت زیبال (شاپرک) دریافت نشد.");
     } catch (err: any) {
-      setErrorMessage(err.message || "خطا در برقراری ارتباط با درگاه پرداخت. لطفاً دوباره تلاش نمایید.");
+      const msg = err.message || "خطا در برقراری ارتباط با درگاه پرداخت. لطفاً دوباره تلاش نمایید.";
+      setErrorMessage(msg);
       setIsLoading(false);
+
+      if (msg.includes("وارد حساب") || msg.includes("منقضی") || msg.includes("نشست")) {
+        if (onOpenAuth) {
+          onOpenAuth();
+        }
+      }
     }
   };
 
@@ -96,11 +118,20 @@ export default function PaymentScreen({
                 <span>دسترسی کامل به پرونده ارزیابی ۲۰۲۶</span>
               </div>
 
-              {user && (
+              {user && getStoredToken() ? (
                 <span className="text-xs text-emerald-200 font-mono bg-white/10 px-3.5 py-1 rounded-full border border-white/10">
                   پرونده: {user.fullName || user.phoneNumber}
                 </span>
-              )}
+              ) : onOpenAuth ? (
+                <button
+                  type="button"
+                  onClick={onOpenAuth}
+                  className="text-xs text-amber-200 bg-amber-500/20 hover:bg-amber-500/30 px-3.5 py-1 rounded-full border border-amber-300/30 font-bold transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  <Lock className="w-3.5 h-3.5 text-amber-300" />
+                  <span>ورود به حساب کاربری</span>
+                </button>
+              ) : null}
             </div>
 
             <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight mb-3 leading-snug">
@@ -245,10 +276,42 @@ export default function PaymentScreen({
 
         {/* Payment Action Section */}
         <div className="p-6 sm:p-10 bg-slate-50/60">
+          {(!user || !getStoredToken()) && (
+            <div className="mb-6 p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-950 text-xs flex flex-col sm:flex-row items-center justify-between gap-3 max-w-xl mx-auto shadow-xs">
+              <div className="flex items-center gap-2.5">
+                <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+                <span className="leading-relaxed">
+                  جهت اتصال امن به شاپرک و ثبت پرونده، ابتدا با شماره موبایل خود وارد شوید.
+                </span>
+              </div>
+              {onOpenAuth && (
+                <button
+                  type="button"
+                  onClick={onOpenAuth}
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold text-xs shrink-0 transition-colors cursor-pointer shadow-xs whitespace-nowrap flex items-center gap-1.5"
+                >
+                  <Phone className="w-3.5 h-3.5" />
+                  <span>ورود با شماره موبایل</span>
+                </button>
+              )}
+            </div>
+          )}
+
           {errorMessage && (
-            <div className="mb-6 p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2.5 max-w-xl mx-auto">
-              <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
-              <span>{errorMessage}</span>
+            <div className="mb-6 p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex flex-col sm:flex-row items-center justify-between gap-3 max-w-xl mx-auto shadow-xs">
+              <div className="flex items-center gap-2.5">
+                <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+                <span>{errorMessage}</span>
+              </div>
+              {onOpenAuth && (errorMessage.includes("وارد حساب") || errorMessage.includes("منقضی") || errorMessage.includes("نشست")) && (
+                <button
+                  type="button"
+                  onClick={onOpenAuth}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold text-xs shrink-0 transition-colors cursor-pointer shadow-xs whitespace-nowrap"
+                >
+                  ورود مجدد با شماره موبایل
+                </button>
+              )}
             </div>
           )}
 
@@ -263,6 +326,12 @@ export default function PaymentScreen({
                 <>
                   <Loader2 className="w-6 h-6 animate-spin" />
                   <span>در حال انتقال به درگاه امن شاپرک...</span>
+                </>
+              ) : !user || !getStoredToken() ? (
+                <>
+                  <Lock className="w-6 h-6 text-amber-300" />
+                  <span>ورود با شماره موبایل و پرداخت امن شاپرک</span>
+                  <ArrowLeft className="w-5 h-5 mr-1" />
                 </>
               ) : (
                 <>

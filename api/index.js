@@ -1070,6 +1070,7 @@ function generateDeterministicFallback(profile, gapYears, isMarried, numChildren
 
 // server.ts
 import crypto2 from "node:crypto";
+import https from "node:https";
 dotenv2.config();
 var app = express();
 app.use(express.json());
@@ -1465,6 +1466,61 @@ app.post("/api/payment/instant-unlock", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: "\u062E\u0637\u0627 \u062F\u0631 \u062A\u0627\u06CC\u06CC\u062F \u067E\u0631\u062F\u0627\u062E\u062A." });
   }
 });
+async function callZibalApi(action, payload) {
+  try {
+    const postData = JSON.stringify(payload);
+    const proxyResult = await new Promise((resolve, reject) => {
+      const proxyReq = https.request(
+        {
+          hostname: "proxy.koochify.ir",
+          port: 443,
+          path: `/proxy.php?action=${action}`,
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Content-Length": Buffer.byteLength(postData),
+            "X-Proxy-Token": "my-secret-123"
+          },
+          rejectUnauthorized: false,
+          timeout: 6e3
+        },
+        (res) => {
+          let raw = "";
+          res.on("data", (chunk) => raw += chunk);
+          res.on("end", () => {
+            if (res.statusCode === 200) {
+              try {
+                resolve(JSON.parse(raw));
+              } catch {
+                reject(new Error(`Proxy returned non-JSON HTTP 200: ${raw.slice(0, 100)}`));
+              }
+            } else {
+              reject(new Error(`Proxy returned HTTP ${res.statusCode}`));
+            }
+          });
+        }
+      );
+      proxyReq.on("error", reject);
+      proxyReq.on("timeout", () => {
+        proxyReq.destroy();
+        reject(new Error("Proxy timeout (6s)"));
+      });
+      proxyReq.write(postData);
+      proxyReq.end();
+    });
+    console.log(`[ZIBAL PROXY SUCCESS] \u0627\u0631\u062A\u0628\u0627\u0637 \u0628\u0627 \u067E\u0631\u0648\u06A9\u0633\u06CC \u0628\u0631\u0627\u06CC \u0639\u0645\u0644\u06CC\u0627\u062A ${action} \u0645\u0648\u0641\u0642 \u0628\u0648\u062F.`);
+    return proxyResult;
+  } catch (proxyErr) {
+    console.warn(`[ZIBAL PROXY FALLBACK] \u0627\u0631\u062A\u0628\u0627\u0637 \u0628\u0627 \u067E\u0631\u0648\u06A9\u0633\u06CC \u0646\u0627\u0645\u0648\u0641\u0642 \u0628\u0648\u062F (${proxyErr.message}). \u0627\u062A\u0635\u0627\u0644 \u0645\u0633\u062A\u0642\u06CC\u0645 \u0628\u0647 \u062F\u0631\u06AF\u0627\u0647 \u0632\u06CC\u0628\u0627\u0644...`);
+  }
+  const directUrl = `https://gateway.zibal.ir/v1/${action}`;
+  const directRes = await fetch(directUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  return await directRes.json();
+}
 var handleOnlinePaymentRequest = async (req, res) => {
   try {
     const priceTomans = getAssessmentPriceTomans();
@@ -1490,22 +1546,14 @@ var handleOnlinePaymentRequest = async (req, res) => {
     const callbackUrl = `${appUrl}/api/payment/zibal/callback?userId=${req.user.id}`;
     const orderId = `KCF-${Date.now()}`;
     console.log(`[ZIBAL REQUEST] \u0634\u0631\u0648\u0639 \u062F\u0631\u062E\u0648\u0627\u0633\u062A \u067E\u0631\u062F\u0627\u062E\u062A \u0628\u0647 \u0632\u06CC\u0628\u0627\u0644 \u0628\u0631\u0627\u06CC ${req.user.phoneNumber} \u0628\u0627 \u0645\u0631\u0686\u0646\u062A ${merchant} (\u0645\u0628\u0644\u063A: ${priceTomans} \u062A\u0648\u0645\u0627\u0646)`);
-    const zibalRes = await fetch("https://proxy.koochify.ir/proxy.php?action=request", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Proxy-Token": "my-secret-123"
-      },
-      body: JSON.stringify({
-        merchant,
-        amount: amountRials,
-        callbackUrl,
-        description: `\u0647\u0632\u06CC\u0646\u0647 \u0627\u0631\u0632\u06CC\u0627\u0628\u06CC \u0647\u0648\u0634\u0645\u0646\u062F \u067E\u0631\u0648\u0646\u062F\u0647 \u0645\u0647\u0627\u062C\u0631\u062A \u06A9\u0648\u0686\u06CC\u0641\u0627\u06CC - ${req.user.phoneNumber}`,
-        orderId,
-        mobile: req.user.phoneNumber ? req.user.phoneNumber.replace(/^(\+98|0098)/, "0") : void 0
-      })
+    const zibalData = await callZibalApi("request", {
+      merchant,
+      amount: amountRials,
+      callbackUrl,
+      description: `\u0647\u0632\u06CC\u0646\u0647 \u0627\u0631\u0632\u06CC\u0627\u0628\u06CC \u0647\u0648\u0634\u0645\u0646\u062F \u067E\u0631\u0648\u0646\u062F\u0647 \u0645\u0647\u0627\u062C\u0631\u062A \u06A9\u0648\u0686\u06CC\u0641\u0627\u06CC - ${req.user.phoneNumber}`,
+      orderId,
+      mobile: req.user.phoneNumber ? req.user.phoneNumber.replace(/^(\+98|0098)/, "0") : void 0
     });
-    const zibalData = await zibalRes.json();
     console.log("[ZIBAL RESPONSE]", zibalData);
     if (zibalData?.result === 100 && zibalData?.trackId) {
       await recordPaymentTransaction(
@@ -1570,18 +1618,10 @@ var handleZibalCallback = async (req, res) => {
         return res.redirect("https://koochify.ir/?payment=failed&reason=no_user");
       }
       const merchant = process.env.ZIBAL_MERCHANT_KEY || process.env.MERCHANT_ID || "6addde0e944acf62f5fd1438";
-      const verifyRes = await fetch("https://proxy.koochify.ir/proxy.php?action=verify", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Proxy-Token": "my-secret-123"
-        },
-        body: JSON.stringify({
-          merchant,
-          trackId: Number(trackId)
-        })
+      const verifyData = await callZibalApi("verify", {
+        merchant,
+        trackId: Number(trackId)
       });
-      const verifyData = await verifyRes.json();
       console.log("[ZIBAL VERIFY RESULT]", verifyData);
       if (verifyData?.result === 100 || verifyData?.result === 201) {
         const refNumber = verifyData.refNumber || trackId;

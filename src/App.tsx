@@ -111,6 +111,8 @@ export default function App() {
         if (freshUser.isPaid) {
           autoRestorePaidUser(freshUser);
         }
+      } else {
+        setUser(null);
       }
     });
 
@@ -118,11 +120,15 @@ export default function App() {
       if (e?.detail) {
         setUser(e.detail);
         if (e.detail.isPaid) autoRestorePaidUser(e.detail);
+      } else if (e?.detail === null) {
+        setUser(null);
       } else {
         fetchCurrentUser().then((fresh) => {
           if (fresh) {
             setUser(fresh);
             if (fresh.isPaid) autoRestorePaidUser(fresh);
+          } else {
+            setUser(null);
           }
         });
       }
@@ -605,6 +611,7 @@ export default function App() {
             user={user}
             onPaymentSuccess={handlePaymentSuccess}
             onBackToEditForm={() => setActiveTab("assessment")}
+            onOpenAuth={() => setIsAuthModalOpen(true)}
           />
         )}
 

@@ -75,7 +75,11 @@ const USER_KEY = "koochify_auth_user";
  */
 export function getStoredToken(): string | null {
   try {
-    return sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY);
+    const token = sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY);
+    if (!token || token === "undefined" || token === "null" || token.trim() === "") {
+      return null;
+    }
+    return token.trim();
   } catch {
     return null;
   }
@@ -83,25 +87,34 @@ export function getStoredToken(): string | null {
 
 /**
  * Gets cached user from sessionStorage (or localStorage fallback)
+ * Ensures user is only returned if a valid matching token exists
  */
 export function getStoredUser(): AuthUser | null {
   try {
+    const token = getStoredToken();
+    if (!token) return null;
+
     const raw = sessionStorage.getItem(USER_KEY) || localStorage.getItem(USER_KEY);
-    return raw ? JSON.parse(raw) : null;
+    if (!raw || raw === "undefined" || raw === "null") return null;
+    return JSON.parse(raw);
   } catch {
     return null;
   }
 }
 
 /**
- * Saves auth session in sessionStorage
+ * Saves auth session in sessionStorage and localStorage
  */
 export function saveAuthSession(token: string, user: AuthUser) {
   try {
-    sessionStorage.setItem(TOKEN_KEY, token);
+    const cleanToken = token.trim();
+    sessionStorage.setItem(TOKEN_KEY, cleanToken);
     sessionStorage.setItem(USER_KEY, JSON.stringify(user));
-    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(TOKEN_KEY, cleanToken);
     localStorage.setItem(USER_KEY, JSON.stringify(user));
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("koochify_user_updated", { detail: user }));
+    }
   } catch (e) {
     console.error("Failed to save auth session to storage:", e);
   }
@@ -118,6 +131,9 @@ export function clearAuthSession() {
     localStorage.removeItem(USER_KEY);
     localStorage.removeItem("kochify_user_profile_v2");
     localStorage.removeItem("kochify_assessment_results_v2");
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("koochify_user_updated", { detail: null }));
+    }
   } catch (e) {
     console.error("Failed to clear auth session:", e);
   }
@@ -202,7 +218,10 @@ export async function verifyOtp(
  */
 export async function fetchCurrentUser(): Promise<AuthUser | null> {
   const token = getStoredToken();
-  if (!token) return null;
+  if (!token) {
+    clearAuthSession();
+    return null;
+  }
 
   try {
     const res = await fetch("/api/auth/me", {
@@ -227,6 +246,7 @@ export async function fetchCurrentUser(): Promise<AuthUser | null> {
       localStorage.setItem(USER_KEY, JSON.stringify(data.user));
       return data.user;
     }
+    clearAuthSession();
     return null;
   } catch (e) {
     console.error("Failed to fetch current user:", e);
@@ -486,7 +506,10 @@ export async function requestOnlinePayment(): Promise<{
   isSandbox?: boolean;
 }> {
   const token = getStoredToken();
-  if (!token) throw new Error("لطفاً ابتدا وارد حساب کاربری خود شوید.");
+  if (!token) {
+    clearAuthSession();
+    throw new Error("لطفاً ابتدا با شماره همراه خود وارد حساب کاربری شوید.");
+  }
 
   const res = await fetch("/api/payment/zarinpal/request", {
     method: "POST",
@@ -496,9 +519,13 @@ export async function requestOnlinePayment(): Promise<{
     },
   });
 
-  const data = await res.json();
+  const data = await res.json().catch(() => null);
   if (!res.ok) {
-    throw new Error(data.error || "خطا در اتصال به درگاه پرداخت");
+    if (res.status === 401) {
+      clearAuthSession();
+      throw new Error("نشست کاربری شما منقضی شده است. لطفاً مجدداً با شماره موبایل وارد شوید.");
+    }
+    throw new Error(data?.error || "خطا در اتصال به درگاه پرداخت");
   }
 
   return data;
