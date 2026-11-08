@@ -96,9 +96,9 @@ export default function PaymentModal({
 
           <div className="flex flex-wrap items-baseline gap-2.5 mt-3 pt-2 border-t border-white/10">
             <span className="text-3xl sm:text-4xl font-black text-amber-300 font-mono tracking-tight">
-              {config ? config.amountTomans.toLocaleString("fa-IR") : "۴۹۹,۰۰۰"}
+              {config ? config.amountTomans.toLocaleString("fa-IR") : "در حال بارگذاری..."}
             </span>
-            <span className="text-xs font-bold text-emerald-100">تومان</span>
+            {config && <span className="text-xs font-bold text-emerald-100">تومان</span>}
 
             <span className="text-xs text-slate-300/80 line-through decoration-rose-500 decoration-[2.5px] font-bold font-mono mr-3">
               ۱,۲۰۰,۰۰۰ تومان
@@ -190,7 +190,7 @@ export default function PaymentModal({
                   <span>
                     {config?.amountTomans === 0
                       ? "فعال‌سازی فوری و رایگان ارزیابی"
-                      : `ورود به درگاه پرداخت امن شاپرک (${config ? config.amountTomans.toLocaleString("fa-IR") : "۴۹۹,۰۰۰"} تومان)`}
+                      : `ورود به درگاه پرداخت امن شاپرک (${config ? `${config.amountTomans.toLocaleString("fa-IR")} تومان` : "در حال دریافت تعرفه..."})`}
                   </span>
                   <ArrowLeft className="w-4 h-4 mr-1" />
                 </>

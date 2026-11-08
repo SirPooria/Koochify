@@ -32,6 +32,7 @@ dotenv.config();
 
 export const app = express();
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // --- Security Headers Middleware ---
 app.use((_req, res, next) => {
@@ -701,7 +702,9 @@ const handleZibalCallback = async (req: any, res: any) => {
 
     console.log(`[ZIBAL CALLBACK] برگشت از درگاه: trackId=${trackId}, success=${success}, status=${status}, queryUserId=${queryUserId}`);
 
-    if (String(success) === "1" && trackId) {
+    const isSuccess = String(success) === "1" || String(status) === "2" || String(status) === "100";
+
+    if (isSuccess && trackId) {
       // Try to get verified userId from DB transaction record (most secure path)
       let verifiedUserId: string | null = null;
       try {
@@ -711,6 +714,7 @@ const handleZibalCallback = async (req: any, res: any) => {
           // Replay prevention: if already verified, redirect to success
           if (tx.status === "verified") {
             console.log(`[ZIBAL CALLBACK] تراکنش قبلاً تایید شده بود: trackId=${trackId}`);
+            await updateUserPayment(tx.userId, true, "paid", String(tx.refNumber || trackId)).catch(() => null);
             return res.redirect(`https://koochify.ir/?payment=success&ref=${tx.refNumber || trackId}`);
           }
         }

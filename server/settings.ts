@@ -16,6 +16,8 @@ const DEFAULT_SETTINGS: SystemSettings = {
 
 let cachedSettings: SystemSettings = { ...DEFAULT_SETTINGS };
 let isInitialized = false;
+let lastFetchedAt = 0;
+const CACHE_TTL_MS = 15000; // 15 seconds cache TTL for multi-instance / serverless sync
 
 // Read settings from local file fallback
 function loadLocalFallbackSettings(): SystemSettings {
@@ -55,12 +57,17 @@ cachedSettings = loadLocalFallbackSettings();
 /**
  * Loads and syncs settings from Supabase database
  */
-export async function refreshSettingsFromDatabase(): Promise<SystemSettings> {
+export async function refreshSettingsFromDatabase(force = false): Promise<SystemSettings> {
+  const now = Date.now();
+  if (!force && isInitialized && now - lastFetchedAt < CACHE_TTL_MS) {
+    return cachedSettings;
+  }
+
   if (supabase) {
     try {
       const { data, error } = await supabase
         .from("payment_transactions")
-        .select("amount_tomans, raw_response, updated_at")
+        .select("amount_tomans, raw_response, created_at")
         .eq("id", "tx_system_settings_config")
         .maybeSingle();
 
@@ -69,11 +76,14 @@ export async function refreshSettingsFromDatabase(): Promise<SystemSettings> {
         if (typeof price === "number") {
           cachedSettings = {
             assessmentPriceTomans: price,
-            updatedAt: data.raw_response?.updatedAt || data.updated_at || new Date().toISOString(),
+            updatedAt: data.raw_response?.updatedAt || data.created_at || new Date().toISOString(),
           };
           isInitialized = true;
+          lastFetchedAt = now;
           return cachedSettings;
         }
+      } else if (error) {
+        console.warn("[SETTINGS] Supabase error fetching settings:", error.message);
       }
     } catch (dbErr) {
       console.warn("[SETTINGS] Could not fetch settings from Supabase, using cache:", dbErr);
@@ -81,15 +91,17 @@ export async function refreshSettingsFromDatabase(): Promise<SystemSettings> {
   }
 
   isInitialized = true;
+  lastFetchedAt = now;
   return cachedSettings;
 }
 
 /**
  * Gets the current active assessment price in Tomans.
- * Always returns latest in-memory cache, and syncs from database if not initialized.
+ * Syncs from database if not initialized or if cache TTL has expired.
  */
 export async function getAssessmentPriceTomans(): Promise<number> {
-  if (!isInitialized) {
+  const now = Date.now();
+  if (!isInitialized || now - lastFetchedAt >= CACHE_TTL_MS) {
     await refreshSettingsFromDatabase();
   }
   return cachedSettings.assessmentPriceTomans;
@@ -114,6 +126,7 @@ export async function setAssessmentPriceTomans(price: number): Promise<number> {
     updatedAt: now,
   };
   isInitialized = true;
+  lastFetchedAt = Date.now();
 
   // Persist to local fallback file
   saveLocalFallbackSettings(cachedSettings);

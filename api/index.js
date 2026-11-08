@@ -799,6 +799,8 @@ var DEFAULT_SETTINGS = {
 };
 var cachedSettings = { ...DEFAULT_SETTINGS };
 var isInitialized = false;
+var lastFetchedAt = 0;
+var CACHE_TTL_MS = 15e3;
 function loadLocalFallbackSettings() {
   try {
     if (fs.existsSync(SETTINGS_FILE_PATH)) {
@@ -826,30 +828,39 @@ function saveLocalFallbackSettings(settings) {
   }
 }
 cachedSettings = loadLocalFallbackSettings();
-async function refreshSettingsFromDatabase() {
+async function refreshSettingsFromDatabase(force = false) {
+  const now = Date.now();
+  if (!force && isInitialized && now - lastFetchedAt < CACHE_TTL_MS) {
+    return cachedSettings;
+  }
   if (supabase) {
     try {
-      const { data, error } = await supabase.from("payment_transactions").select("amount_tomans, raw_response, updated_at").eq("id", "tx_system_settings_config").maybeSingle();
+      const { data, error } = await supabase.from("payment_transactions").select("amount_tomans, raw_response, created_at").eq("id", "tx_system_settings_config").maybeSingle();
       if (!error && data) {
         const price = typeof data.amount_tomans === "number" ? data.amount_tomans : data.raw_response?.assessmentPriceTomans;
         if (typeof price === "number") {
           cachedSettings = {
             assessmentPriceTomans: price,
-            updatedAt: data.raw_response?.updatedAt || data.updated_at || (/* @__PURE__ */ new Date()).toISOString()
+            updatedAt: data.raw_response?.updatedAt || data.created_at || (/* @__PURE__ */ new Date()).toISOString()
           };
           isInitialized = true;
+          lastFetchedAt = now;
           return cachedSettings;
         }
+      } else if (error) {
+        console.warn("[SETTINGS] Supabase error fetching settings:", error.message);
       }
     } catch (dbErr) {
       console.warn("[SETTINGS] Could not fetch settings from Supabase, using cache:", dbErr);
     }
   }
   isInitialized = true;
+  lastFetchedAt = now;
   return cachedSettings;
 }
 async function getAssessmentPriceTomans() {
-  if (!isInitialized) {
+  const now = Date.now();
+  if (!isInitialized || now - lastFetchedAt >= CACHE_TTL_MS) {
     await refreshSettingsFromDatabase();
   }
   return cachedSettings.assessmentPriceTomans;
@@ -862,6 +873,7 @@ async function setAssessmentPriceTomans(price) {
     updatedAt: now
   };
   isInitialized = true;
+  lastFetchedAt = Date.now();
   saveLocalFallbackSettings(cachedSettings);
   if (supabase) {
     try {
@@ -1149,6 +1161,7 @@ import https from "node:https";
 dotenv2.config();
 var app = express();
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use((_req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-Frame-Options", "SAMEORIGIN");
@@ -1673,7 +1686,8 @@ var handleZibalCallback = async (req, res) => {
     const status = req.query.status || req.body?.status;
     const queryUserId = req.query.userId || req.body?.userId;
     console.log(`[ZIBAL CALLBACK] \u0628\u0631\u06AF\u0634\u062A \u0627\u0632 \u062F\u0631\u06AF\u0627\u0647: trackId=${trackId}, success=${success}, status=${status}, queryUserId=${queryUserId}`);
-    if (String(success) === "1" && trackId) {
+    const isSuccess = String(success) === "1" || String(status) === "2" || String(status) === "100";
+    if (isSuccess && trackId) {
       let verifiedUserId = null;
       try {
         const tx = await getTransactionByTrackId(String(trackId));
@@ -1681,6 +1695,7 @@ var handleZibalCallback = async (req, res) => {
           verifiedUserId = tx.userId;
           if (tx.status === "verified") {
             console.log(`[ZIBAL CALLBACK] \u062A\u0631\u0627\u06A9\u0646\u0634 \u0642\u0628\u0644\u0627\u064B \u062A\u0627\u06CC\u06CC\u062F \u0634\u062F\u0647 \u0628\u0648\u062F: trackId=${trackId}`);
+            await updateUserPayment(tx.userId, true, "paid", String(tx.refNumber || trackId)).catch(() => null);
             return res.redirect(`https://koochify.ir/?payment=success&ref=${tx.refNumber || trackId}`);
           }
         }

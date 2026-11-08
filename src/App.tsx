@@ -22,6 +22,7 @@ import {
   getStoredUser,
   saveAssessmentToCloud,
   fetchUserAssessments,
+  fetchUserAssessmentById,
   deleteAssessment,
   fetchGroqEvaluation
 } from "./services/authService";
@@ -77,7 +78,18 @@ export default function App() {
       try {
         const existingAssessments = await fetchUserAssessments();
         if (existingAssessments && existingAssessments.length > 0) {
-          // User already has saved assessment in cloud
+          // User already has saved assessment in cloud - load full data and display it
+          try {
+            const fullRecord = await fetchUserAssessmentById(existingAssessments[0].id);
+            if (fullRecord?.profileData && fullRecord?.resultsData) {
+              setUserProfile(fullRecord.profileData);
+              setResults(fullRecord.resultsData);
+              setIsSavedToCloud(true);
+              setActiveTab("results");
+            }
+          } catch (e) {
+            console.warn("Could not load full dossier by ID:", e);
+          }
           return;
         }
 

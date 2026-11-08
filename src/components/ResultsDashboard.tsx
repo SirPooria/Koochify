@@ -113,7 +113,8 @@ export default function ResultsDashboard({
 
   // STRICT PAYWALL: If user has not paid, ZERO results are leaked!
   if (!isPaid) {
-    const priceTomans = config?.amountTomans ?? 499000;
+    const priceTomans = config?.amountTomans;
+    const formattedPrice = priceTomans !== undefined ? priceTomans.toLocaleString("fa-IR") : "در حال دریافت تعرفه...";
     return (
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-12 text-right" dir="rtl">
         <div className="bg-white rounded-3xl shadow-2xl border border-slate-200/90 overflow-hidden text-center p-8 sm:p-14 relative">
@@ -138,10 +139,12 @@ export default function ResultsDashboard({
           <div className="max-w-md mx-auto bg-gradient-to-r from-slate-900 via-slate-800 to-emerald-950 text-white rounded-3xl p-6 mb-8 border border-slate-700 shadow-xl">
             <span className="text-xs text-emerald-200/80 block mb-1 font-medium">هزینه نهایی ارزیابی و آزادسازی نتایج کامل:</span>
             <div className="flex items-baseline justify-center gap-2 my-2">
-              <span className="text-4xl sm:text-5xl font-black text-amber-300 font-mono tracking-tight">
-                {priceTomans.toLocaleString("fa-IR")}
+              <span className="text-3xl sm:text-5xl font-black text-amber-300 font-mono tracking-tight">
+                {formattedPrice}
               </span>
-              <span className="text-sm sm:text-base font-bold text-emerald-100">تومان</span>
+              {priceTomans !== undefined && (
+                <span className="text-sm sm:text-base font-bold text-emerald-100">تومان</span>
+              )}
             </div>
             <div className="pt-3 border-t border-white/10 text-[11.5px] text-emerald-300 flex items-center justify-center gap-2">
               <ShieldCheck className="w-4 h-4 text-emerald-400" />
@@ -155,7 +158,7 @@ export default function ResultsDashboard({
               className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 hover:to-teal-500 text-white rounded-2xl font-black text-sm shadow-xl shadow-emerald-600/30 transition-all transform hover:scale-[1.02] flex items-center justify-center gap-2 cursor-pointer"
             >
               <Lock className="w-4 h-4" />
-              <span>پرداخت هزینه و آزادسازی فوری نتایج ({priceTomans.toLocaleString("fa-IR")} ت)</span>
+              <span>پرداخت هزینه و آزادسازی فوری نتایج {priceTomans !== undefined ? `(${priceTomans.toLocaleString("fa-IR")} ت)` : ""}</span>
             </button>
 
             <button

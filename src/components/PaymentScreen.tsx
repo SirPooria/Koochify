@@ -147,9 +147,9 @@ export default function PaymentScreen({
                 <span className="text-xs text-emerald-200/80 block mb-1 font-medium">مبلغ هزینه ارزیابی این فرم:</span>
                 <div className="flex items-baseline gap-2">
                   <span className="text-3xl sm:text-5xl font-black text-amber-300 font-mono tracking-tight">
-                    {config ? config.amountTomans.toLocaleString("fa-IR") : "۴۹۹,۰۰۰"}
+                    {config ? config.amountTomans.toLocaleString("fa-IR") : "در حال دریافت تعرفه..."}
                   </span>
-                  <span className="text-sm sm:text-base font-bold text-emerald-100">تومان</span>
+                  {config && <span className="text-sm sm:text-base font-bold text-emerald-100">تومان</span>}
                 </div>
               </div>
 
@@ -203,7 +203,7 @@ export default function PaymentScreen({
               <div className="p-4 sm:p-5 rounded-2xl bg-emerald-50/80 border border-emerald-300 text-emerald-950 space-y-2.5 shadow-xs">
                 <div className="flex items-center gap-2 font-bold text-emerald-900 text-sm">
                   <span className="w-6 h-6 rounded-lg bg-emerald-600 text-white flex items-center justify-center text-xs shrink-0">✓</span>
-                  <span>ارزیابی هوشمند کوچیفای ({config ? config.amountTomans.toLocaleString("fa-IR") : "۴۹۹,۰۰۰"} تومان):</span>
+                  <span>ارزیابی هوشمند کوچیفای ({config ? `${config.amountTomans.toLocaleString("fa-IR")} تومان` : "در حال دریافت تعرفه..."}):</span>
                 </div>
                 <p className="text-emerald-900/90 leading-relaxed text-[11.5px]">
                   شرایط شما کاملاً <strong>بی‌طرفانه و بر اساس داده‌های دقیق ۲۰۲۶</strong> با بیش از ۵۰ برنامه فعال در آلمان، کانادا، ایتالیا، فرانسه، استرالیا و... تطبیق داده می‌شود؛ بدون هیچ‌گونه تعصب یا پورسانت پنهان.
@@ -339,7 +339,7 @@ export default function PaymentScreen({
                   <span>
                     {config?.amountTomans === 0
                       ? "فعال‌سازی فوری و رایگان ارزیابی"
-                      : `ورود به درگاه پرداخت امن شاپرک — ${config ? config.amountTomans.toLocaleString("fa-IR") : "۴۹۹,۰۰۰"} تومان`}
+                      : `ورود به درگاه پرداخت امن شاپرک — ${config ? `${config.amountTomans.toLocaleString("fa-IR")} تومان` : "در حال دریافت تعرفه..."}`}
                   </span>
                   <ArrowLeft className="w-5 h-5 mr-1" />
                 </>
