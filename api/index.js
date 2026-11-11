@@ -1226,10 +1226,30 @@ var aiRateLimiter = (req, res, next) => {
   bucket.count++;
   next();
 };
-app.get(["/api", "/api/health"], (req, res) => {
+app.get(["/api", "/api/health"], async (_req, res) => {
+  let dbStatus = "disconnected";
+  let dbDetails = null;
+  if (supabase) {
+    try {
+      const { count, error } = await supabase.from("users").select("*", { count: "exact", head: true });
+      if (!error) {
+        dbStatus = "connected";
+        dbDetails = { totalUsersCount: count };
+      } else {
+        dbStatus = `error: ${error.message}`;
+      }
+    } catch (e) {
+      dbStatus = `exception: ${e.message}`;
+    }
+  }
   return res.json({
     status: "ok",
     service: "koochify-api",
+    database: {
+      provider: "supabase",
+      status: dbStatus,
+      ...dbDetails
+    },
     time: (/* @__PURE__ */ new Date()).toISOString()
   });
 });

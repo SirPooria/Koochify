@@ -21,6 +21,7 @@ import {
   recordPaymentTransaction,
   completePaymentTransaction,
   getTransactionByTrackId,
+  supabase,
 } from "./server/db.ts";
 import { sendOtpSms } from "./server/smsService.ts";
 import { getAssessmentPriceTomans, setAssessmentPriceTomans } from "./server/settings.ts";
@@ -114,10 +115,31 @@ const aiRateLimiter = (req: express.Request, res: express.Response, next: expres
 };
 
 // API Health Check & Deployment Ping
-app.get(["/api", "/api/health"], (req, res) => {
+app.get(["/api", "/api/health"], async (_req, res) => {
+  let dbStatus = "disconnected";
+  let dbDetails: any = null;
+  if (supabase) {
+    try {
+      const { count, error } = await supabase.from("users").select("*", { count: "exact", head: true });
+      if (!error) {
+        dbStatus = "connected";
+        dbDetails = { totalUsersCount: count };
+      } else {
+        dbStatus = `error: ${error.message}`;
+      }
+    } catch (e: any) {
+      dbStatus = `exception: ${e.message}`;
+    }
+  }
+
   return res.json({
     status: "ok",
     service: "koochify-api",
+    database: {
+      provider: "supabase",
+      status: dbStatus,
+      ...dbDetails,
+    },
     time: new Date().toISOString(),
   });
 });

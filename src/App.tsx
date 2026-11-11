@@ -73,76 +73,71 @@ export default function App() {
 
   // Check and refresh user session on mount + handle payment callbacks and admin routing
   useEffect(() => {
-    // Helper to auto-restore assessment from localStorage for paid users with empty cloud dossier
-    const autoRestorePaidUser = async (freshUser: AuthUser) => {
-      try {
-        const existingAssessments = await fetchUserAssessments();
-        if (existingAssessments && existingAssessments.length > 0) {
-          // User already has saved assessment in cloud - load full data and display it
-          try {
-            const fullRecord = await fetchUserAssessmentById(existingAssessments[0].id);
-            if (fullRecord?.profileData && fullRecord?.resultsData) {
-              setUserProfile(fullRecord.profileData);
-              setResults(fullRecord.resultsData);
-              setIsSavedToCloud(true);
-              setActiveTab("results");
-            }
-          } catch (e) {
-            console.warn("Could not load full dossier by ID:", e);
-          }
-          return;
-        }
+    // Sync user state and load appropriate dossier on session change
+    const syncUserState = async (freshUser: AuthUser | null) => {
+      setUser(freshUser);
+      if (!freshUser) {
+        setUserProfile(DEFAULT_PROFILE);
+        setResults(null);
+        setIsSavedToCloud(false);
+        return;
+      }
 
+      // Check if this specific logged-in user has a saved assessment dossier in Supabase
+      try {
+        const cloudAssessments = await fetchUserAssessments();
+        if (cloudAssessments && cloudAssessments.length > 0) {
+          const fullRecord = await fetchUserAssessmentById(cloudAssessments[0].id);
+          if (fullRecord?.profileData && fullRecord?.resultsData) {
+            setUserProfile(fullRecord.profileData);
+            setResults(fullRecord.resultsData);
+            setIsSavedToCloud(true);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn("Could not check user assessments on login:", err);
+      }
+
+      // If user is marked paid in DB, check if there's a pending draft to auto-save
+      if (freshUser.isPaid) {
         const draftRaw =
           localStorage.getItem("koochify_pending_profile") ||
           localStorage.getItem("kochify_profile_draft");
-
         if (draftRaw) {
-          const restoredProfile: UserAssessmentProfile = JSON.parse(draftRaw);
-          const computedResults = evaluateUserMigrationProfile(restoredProfile);
-          setUserProfile(restoredProfile);
-          setResults(computedResults);
-
           try {
+            const restoredProfile: UserAssessmentProfile = JSON.parse(draftRaw);
+            const computedResults = evaluateUserMigrationProfile(restoredProfile);
+            setUserProfile(restoredProfile);
+            setResults(computedResults);
             await saveAssessmentToCloud(restoredProfile, computedResults);
             setIsSavedToCloud(true);
-            console.log("[AUTO-RESTORE] پرونده پیش‌نویس کاربر با موفقیت در دیتابیس ثبت شد.");
+            setActiveTab("results");
+            return;
           } catch (saveErr) {
             console.warn("خطا در ذخیره خودکار پرونده بازیابی‌شده:", saveErr);
           }
-          setActiveTab("results");
         }
-      } catch (err) {
-        console.warn("Auto-restore check error:", err);
       }
+
+      // If this user has no saved dossier, reset to clean DEFAULT_PROFILE with user's name
+      setUserProfile({
+        ...DEFAULT_PROFILE,
+        fullName: freshUser.fullName || "",
+      });
+      setResults(null);
+      setIsSavedToCloud(false);
     };
 
-    fetchCurrentUser().then((freshUser) => {
-      if (freshUser) {
-        setUser(freshUser);
-        if (freshUser.isPaid) {
-          autoRestorePaidUser(freshUser);
-        }
-      } else {
-        setUser(null);
-      }
-    });
+    fetchCurrentUser().then(syncUserState);
 
     const handleUserUpdated = (e: any) => {
       if (e?.detail) {
-        setUser(e.detail);
-        if (e.detail.isPaid) autoRestorePaidUser(e.detail);
+        syncUserState(e.detail);
       } else if (e?.detail === null) {
-        setUser(null);
+        syncUserState(null);
       } else {
-        fetchCurrentUser().then((fresh) => {
-          if (fresh) {
-            setUser(fresh);
-            if (fresh.isPaid) autoRestorePaidUser(fresh);
-          } else {
-            setUser(null);
-          }
-        });
+        fetchCurrentUser().then(syncUserState);
       }
     };
 
@@ -413,11 +408,23 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // Handle Logout
+  // Handle Logout: Clean all user state and drafts so User B never inherits User A's data
   const handleLogout = () => {
     setUser(null);
+    setUserProfile(DEFAULT_PROFILE);
+    setResults(null);
     setIsSavedToCloud(false);
     setActiveTab("home");
+    try {
+      localStorage.removeItem("kochify_profile_draft");
+      localStorage.removeItem("koochify_pending_profile");
+      localStorage.removeItem("koochify_pending_results");
+      sessionStorage.removeItem("kochify_profile_draft");
+      sessionStorage.removeItem("koochify_pending_profile");
+      sessionStorage.removeItem("koochify_pending_results");
+    } catch {
+      // Ignore
+    }
   };
 
   // Handle Profile Import

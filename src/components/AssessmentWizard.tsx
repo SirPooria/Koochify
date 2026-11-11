@@ -231,7 +231,7 @@ export default function AssessmentWizard({
     }
   };
 
-  const currentFullName = profile.fullName?.trim() || user?.fullName?.trim() || "";
+  const currentFullName = user?.fullName?.trim() || profile.fullName?.trim() || "";
   const firstName = inputFirstName.trim() || getFirstName(currentFullName);
   const assistantGreetingName = firstName || "همراه عزیز";
   const displayName = firstName || "همراه";
