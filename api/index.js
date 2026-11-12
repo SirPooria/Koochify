@@ -434,7 +434,10 @@ async function recordPaymentTransaction(userId, amountTomans = 499e3, amountRial
       status,
       created_at: now
     });
-    if (error) console.error("\u274C [SUPABASE ERROR] recordPaymentTransaction:", error.message);
+    if (error) {
+      console.error("\u274C [SUPABASE ERROR] recordPaymentTransaction:", error.message);
+      throw new Error(`\u062E\u0637\u0627 \u062F\u0631 \u062B\u0628\u062A \u062A\u0631\u0627\u06A9\u0646\u0634 \u067E\u0631\u062F\u0627\u062E\u062A: ${error.message}`);
+    }
     return id;
   }
   memoryFallbackStore.transactions.set(id, {
@@ -1670,7 +1673,7 @@ var handleOnlinePaymentRequest = async (req, res) => {
         amountRials,
         String(zibalData.trackId),
         "pending"
-      ).catch((e) => console.error("Could not record payment tx in DB:", e));
+      );
       return res.json({
         success: true,
         paymentUrl: `https://gateway.zibal.ir/start/${zibalData.trackId}`,
@@ -1700,8 +1703,9 @@ app.post("/api/payment/zibal/request", authMiddleware, handleOnlinePaymentReques
 app.post("/api/payment/zarinpal/request", authMiddleware, handleOnlinePaymentRequest);
 app.post("/api/payment/request", authMiddleware, handleOnlinePaymentRequest);
 var handleZibalCallback = async (req, res) => {
+  let trackId = null;
   try {
-    const trackId = req.query.trackId || req.body?.trackId;
+    trackId = req.query.trackId || req.body?.trackId || null;
     const success = req.query.success || req.body?.success;
     const status = req.query.status || req.body?.status;
     const queryUserId = req.query.userId || req.body?.userId;
@@ -1712,11 +1716,6 @@ var handleZibalCallback = async (req, res) => {
         const tx = await getTransactionByTrackId(String(trackId));
         if (tx && tx.userId) {
           verifiedUserId = tx.userId;
-          if (tx.status === "verified") {
-            console.log(`[ZIBAL CALLBACK] \u062A\u0631\u0627\u06A9\u0646\u0634 \u0642\u0628\u0644\u0627\u064B \u062A\u0627\u06CC\u06CC\u062F \u0634\u062F\u0647 \u0628\u0648\u062F: trackId=${trackId}`);
-            await updateUserPayment(tx.userId, true, "paid", String(tx.refNumber || trackId)).catch(() => null);
-            return res.redirect(`https://koochify.ir/?payment=success&ref=${tx.refNumber || trackId}`);
-          }
         }
       } catch (dbErr) {
         console.error(`[ZIBAL CALLBACK] \u062E\u0637\u0627 \u062F\u0631 \u0628\u0627\u0632\u06CC\u0627\u0628\u06CC \u062A\u0631\u0627\u06A9\u0646\u0634 \u0627\u0632 DB:`, dbErr);
@@ -1724,7 +1723,7 @@ var handleZibalCallback = async (req, res) => {
       const finalUserId = verifiedUserId || (queryUserId ? String(queryUserId) : null);
       if (!finalUserId) {
         console.error(`[ZIBAL CALLBACK SECURITY] \u0647\u06CC\u0686 \u0634\u0646\u0627\u0633\u0647 \u06A9\u0627\u0631\u0628\u0631\u06CC \u0628\u0631\u0627\u06CC trackId=${trackId} \u06CC\u0627\u0641\u062A \u0646\u0634\u062F.`);
-        return res.redirect("https://koochify.ir/?payment=failed&reason=no_user");
+        return res.redirect(`https://koochify.ir/?payment=failed&trackId=${encodeURIComponent(String(trackId))}&reason=no_user`);
       }
       const merchant = process.env.ZIBAL_MERCHANT_KEY || process.env.MERCHANT_ID || "6addde0e944acf62f5fd1438";
       const verifyData = await callZibalApi("verify", {
@@ -1738,23 +1737,60 @@ var handleZibalCallback = async (req, res) => {
         await updateUserPayment(finalUserId, true, "paid", String(refNumber), cardNumber);
         await completePaymentTransaction(String(trackId), String(refNumber), cardNumber, verifyData).catch((e) => console.error("Could not complete payment tx:", e));
         console.log(`[PAYMENT SUCCESS] \u067E\u0631\u062F\u0627\u062E\u062A \u06A9\u0627\u0631\u0628\u0631 ${finalUserId} \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u062A\u0627\u06CC\u06CC\u062F \u0634\u062F. \u0634\u0645\u0627\u0631\u0647 \u062A\u0631\u0627\u06A9\u0646\u0634: ${refNumber}`);
-        return res.redirect(`https://koochify.ir/?payment=success&ref=${refNumber}`);
+        return res.redirect(`https://koochify.ir/?payment=success&trackId=${encodeURIComponent(String(trackId))}&ref=${refNumber}`);
       } else {
-        await completePaymentTransaction(String(trackId), "", "", verifyData).catch((e) => console.error("Could not update failed tx:", e));
         console.warn(`[ZIBAL VERIFY FAILED] \u062A\u0631\u0627\u06A9\u0646\u0634 \u062A\u0627\u06CC\u06CC\u062F \u0646\u0634\u062F: ${verifyData?.result} - ${verifyData?.message}`);
-        return res.redirect(`https://koochify.ir/?payment=failed&status=${verifyData?.result || status}`);
+        return res.redirect(`https://koochify.ir/?payment=failed&trackId=${encodeURIComponent(String(trackId))}&status=${verifyData?.result || status}`);
       }
     }
     return res.redirect(`https://koochify.ir/?payment=cancelled&status=${status || "cancelled"}`);
   } catch (err) {
     console.error("Error in Zibal callback handler:", err);
-    return res.redirect("https://koochify.ir/?payment=error");
+    return res.redirect(`https://koochify.ir/?payment=error${trackId ? `&trackId=${encodeURIComponent(String(trackId))}` : ""}`);
   }
 };
 app.get("/api/payment/zibal/callback", handleZibalCallback);
 app.post("/api/payment/zibal/callback", handleZibalCallback);
 app.get("/api/payment/zarinpal/callback", handleZibalCallback);
 app.get("/api/payment/callback", handleZibalCallback);
+app.post("/api/payment/zibal/reconcile", authMiddleware, async (req, res) => {
+  try {
+    const trackId = String(req.body?.trackId || "").trim();
+    if (!trackId || !/^\d+$/.test(trackId)) {
+      return res.status(400).json({ error: "\u0634\u0646\u0627\u0633\u0647 \u062A\u0631\u0627\u06A9\u0646\u0634 \u0632\u06CC\u0628\u0627\u0644 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A." });
+    }
+    const transaction = await getTransactionByTrackId(trackId);
+    if (!transaction || transaction.userId !== req.user.id) {
+      return res.status(404).json({ error: "\u062A\u0631\u0627\u06A9\u0646\u0634 \u0628\u0631\u0627\u06CC \u0627\u06CC\u0646 \u062D\u0633\u0627\u0628 \u06A9\u0627\u0631\u0628\u0631\u06CC \u06CC\u0627\u0641\u062A \u0646\u0634\u062F." });
+    }
+    const merchant = process.env.ZIBAL_MERCHANT_KEY || process.env.MERCHANT_ID || "6addde0e944acf62f5fd1438";
+    const verifyData = await callZibalApi("verify", {
+      merchant,
+      trackId: Number(trackId)
+    });
+    if (verifyData?.result === 100 || verifyData?.result === 201) {
+      const refNumber = verifyData.refNumber || trackId;
+      const updatedUser = await updateUserPayment(
+        req.user.id,
+        true,
+        "paid",
+        String(refNumber),
+        verifyData.cardNumber || ""
+      );
+      await completePaymentTransaction(
+        trackId,
+        String(refNumber),
+        verifyData.cardNumber || "",
+        verifyData
+      );
+      return res.json({ success: true, user: updatedUser });
+    }
+    return res.status(202).json({ success: false, pending: true });
+  } catch (err) {
+    console.error("Zibal payment reconciliation failed:", err);
+    return res.status(503).json({ error: "\u0628\u0631\u0631\u0633\u06CC \u067E\u0631\u062F\u0627\u062E\u062A \u0645\u0648\u0642\u062A\u0627\u064B \u0645\u0645\u06A9\u0646 \u0646\u0634\u062F.", pending: true });
+  }
+});
 app.get("/api/payment/simulate", async (req, res) => {
   if (process.env.NODE_ENV === "production" && process.env.ALLOW_DEV_SIMULATE !== "true") {
     return res.status(404).send("\u0635\u0641\u062D\u0647 \u0645\u0648\u0631\u062F \u0646\u0638\u0631 \u06CC\u0627\u0641\u062A \u0646\u0634\u062F.");

@@ -704,7 +704,10 @@ export async function recordPaymentTransaction(
       status,
       created_at: now,
     });
-    if (error) console.error("❌ [SUPABASE ERROR] recordPaymentTransaction:", error.message);
+    if (error) {
+      console.error("❌ [SUPABASE ERROR] recordPaymentTransaction:", error.message);
+      throw new Error(`خطا در ثبت تراکنش پرداخت: ${error.message}`);
+    }
     return id;
   }
 

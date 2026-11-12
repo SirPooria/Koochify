@@ -24,7 +24,8 @@ import {
   fetchUserAssessments,
   fetchUserAssessmentById,
   deleteAssessment,
-  fetchGroqEvaluation
+  fetchGroqEvaluation,
+  reconcileOnlinePayment
 } from "./services/authService";
 import {
   UserAssessmentProfile,
@@ -70,6 +71,91 @@ export default function App() {
     return false;
   });
   const [isSavedToCloud, setIsSavedToCloud] = useState(false);
+  const [paymentTrackId, setPaymentTrackId] = useState<string | null>(null);
+  const [isPaymentVerificationPending, setIsPaymentVerificationPending] = useState(false);
+  const [isRecheckingPayment, setIsRecheckingPayment] = useState(false);
+
+  const restorePaidAssessment = async (freshUser: AuthUser) => {
+    setUser(freshUser);
+    const profileRaw =
+      localStorage.getItem("koochify_pending_profile") ||
+      localStorage.getItem("kochify_profile_draft");
+    const resultsRaw = localStorage.getItem("koochify_pending_results");
+
+    try {
+      const restoredProfile = profileRaw ? JSON.parse(profileRaw) as UserAssessmentProfile : null;
+      const restoredResults = resultsRaw
+        ? JSON.parse(resultsRaw) as RecommendationSummary
+        : restoredProfile
+          ? evaluateUserMigrationProfile(restoredProfile)
+          : results;
+
+      if (restoredProfile && restoredResults) {
+        setUserProfile(restoredProfile);
+        setResults(restoredResults);
+        try {
+          await saveAssessmentToCloud(restoredProfile, restoredResults);
+          setIsSavedToCloud(true);
+        } catch (err) {
+          console.warn("Could not save recovered assessment:", err);
+        }
+      } else if (results) {
+        setIsSavedToCloud(false);
+      }
+
+      setActiveTab("results");
+      setIsPaymentVerificationPending(false);
+      setPaymentTrackId(null);
+      localStorage.removeItem("koochify_pending_profile");
+      localStorage.removeItem("koochify_pending_results");
+      localStorage.removeItem("koochify_pending_payment_track_id");
+    } catch (err) {
+      console.error("Could not restore the paid assessment:", err);
+      setActiveTab("results");
+    }
+  };
+
+  const verifyPendingPayment = async (trackId: string | null) => {
+    setPaymentTrackId(trackId);
+    setIsPaymentVerificationPending(Boolean(trackId));
+    setIsRecheckingPayment(true);
+    setActiveTab("payment");
+    let paymentRecovered = false;
+
+    try {
+      for (let attempt = 0; attempt < 4; attempt++) {
+        const freshUser = await fetchCurrentUser();
+        if (freshUser?.isPaid) {
+          paymentRecovered = true;
+          await restorePaidAssessment(freshUser);
+          return;
+        }
+
+        if (trackId && freshUser) {
+          try {
+            const reconciliation = await reconcileOnlinePayment(trackId);
+            if (reconciliation.success && reconciliation.user?.isPaid) {
+              paymentRecovered = true;
+              await restorePaidAssessment(reconciliation.user);
+              return;
+            }
+          } catch (err) {
+            console.warn("Payment verification retry failed:", err);
+          }
+        }
+
+        if (attempt < 3) {
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+        }
+      }
+    } finally {
+      setIsRecheckingPayment(false);
+      if (!paymentRecovered) {
+        setIsPaymentVerificationPending(Boolean(trackId));
+        setActiveTab("payment");
+      }
+    }
+  };
 
   // Check and refresh user session on mount + handle payment callbacks and admin routing
   useEffect(() => {
@@ -129,8 +215,6 @@ export default function App() {
       setIsSavedToCloud(false);
     };
 
-    fetchCurrentUser().then(syncUserState);
-
     const handleUserUpdated = (e: any) => {
       if (e?.detail) {
         syncUserState(e.detail);
@@ -146,9 +230,14 @@ export default function App() {
 
       const params = new URLSearchParams(window.location.search);
       const paymentStatus = params.get("payment");
+      const isPaymentReturn = ["success", "failed", "error", "cancelled"].includes(paymentStatus || "");
+
+      if (!isPaymentReturn) {
+        fetchCurrentUser().then(syncUserState);
+      }
 
       // Handle return from payment gateway (Zibal redirect back)
-      if (paymentStatus === "success" || paymentStatus === "failed" || paymentStatus === "error" || paymentStatus === "cancelled") {
+      if (isPaymentReturn) {
         // Always try to restore pending assessment from localStorage after gateway redirect
         try {
           const pendingProfileRaw =
@@ -170,42 +259,10 @@ export default function App() {
             console.log("[RESTORE] پرونده ارزیابی از حافظه موقت با موفقیت بازیابی شد.");
           }
 
-          fetchCurrentUser().then(async (fresh) => {
-            if (fresh) {
-              setUser(fresh);
-
-              // If user is marked paid in DB, always treat as success regardless of gateway query param
-              if (fresh.isPaid) {
-                if (restoredProfile && restoredResults) {
-                  try {
-                    await saveAssessmentToCloud(restoredProfile, restoredResults);
-                    setIsSavedToCloud(true);
-                  } catch (err) {
-                    console.warn("خطا در ذخیره پرونده در دیتابیس:", err);
-                  }
-                }
-                setActiveTab("results");
-              } else if (paymentStatus === "success") {
-                // Gateway says success but DB update might have small race condition
-                setActiveTab("results");
-                setTimeout(async () => {
-                  const retryUser = await fetchCurrentUser();
-                  if (retryUser?.isPaid) {
-                    setUser(retryUser);
-                    if (restoredProfile && restoredResults) {
-                      try {
-                        await saveAssessmentToCloud(restoredProfile, restoredResults);
-                        setIsSavedToCloud(true);
-                      } catch {}
-                    }
-                  }
-                }, 2500);
-              } else {
-                // Truly failed/cancelled/error: keep results in memory and show payment screen
-                setActiveTab("payment");
-              }
-            }
-          });
+          const trackId =
+            params.get("trackId") ||
+            localStorage.getItem("koochify_pending_payment_track_id");
+          void verifyPendingPayment(trackId);
         } catch (err) {
           console.warn("خطا در بازیابی پرونده از localStorage:", err);
         }
@@ -419,9 +476,11 @@ export default function App() {
       localStorage.removeItem("kochify_profile_draft");
       localStorage.removeItem("koochify_pending_profile");
       localStorage.removeItem("koochify_pending_results");
+      localStorage.removeItem("koochify_pending_payment_track_id");
       sessionStorage.removeItem("kochify_profile_draft");
       sessionStorage.removeItem("koochify_pending_profile");
       sessionStorage.removeItem("koochify_pending_results");
+      sessionStorage.removeItem("koochify_pending_payment_track_id");
     } catch {
       // Ignore
     }
@@ -453,6 +512,7 @@ export default function App() {
     try {
       localStorage.removeItem("kochify_profile_draft");
       localStorage.removeItem("kochify_wizard_introduced");
+      localStorage.removeItem("koochify_pending_payment_track_id");
     } catch { }
     setActiveTab("home");
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -633,6 +693,12 @@ export default function App() {
             onPaymentSuccess={handlePaymentSuccess}
             onBackToEditForm={() => setActiveTab("assessment")}
             onOpenAuth={() => setIsAuthModalOpen(true)}
+            isPaymentRecoveryPending={isPaymentVerificationPending}
+            isRecheckingPayment={isRecheckingPayment}
+            onRetryPaymentVerification={() => {
+              const trackId = paymentTrackId || localStorage.getItem("koochify_pending_payment_track_id");
+              void verifyPendingPayment(trackId);
+            }}
           />
         )}
 

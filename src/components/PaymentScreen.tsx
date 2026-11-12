@@ -30,6 +30,9 @@ interface PaymentScreenProps {
   onPaymentSuccess: (user: AuthUser) => void;
   onBackToEditForm?: () => void;
   onOpenAuth?: () => void;
+  isPaymentRecoveryPending?: boolean;
+  isRecheckingPayment?: boolean;
+  onRetryPaymentVerification?: () => void;
 }
 
 export default function PaymentScreen({
@@ -37,6 +40,9 @@ export default function PaymentScreen({
   onPaymentSuccess,
   onBackToEditForm,
   onOpenAuth,
+  isPaymentRecoveryPending = false,
+  isRecheckingPayment = false,
+  onRetryPaymentVerification,
 }: PaymentScreenProps) {
   const [config, setConfig] = useState<PaymentConfig | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -66,10 +72,16 @@ export default function PaymentScreen({
     try {
       const res = await requestOnlinePayment();
       if (res.paymentUrl) {
+        const trackId = res.trackId || new URL(res.paymentUrl, window.location.origin).pathname.split("/").pop();
+        if (!trackId) {
+          throw new Error("شناسه تراکنش دریافت نشد؛ برای جلوگیری از پرداخت نامشخص، به درگاه منتقل نشدید.");
+        }
+        localStorage.setItem("koochify_pending_payment_track_id", trackId);
         window.location.href = res.paymentUrl;
         return;
       }
       if ((res as any).freeUnlock && (res as any).user) {
+        localStorage.removeItem("koochify_pending_payment_track_id");
         onPaymentSuccess((res as any).user);
         return;
       }
@@ -315,14 +327,45 @@ export default function PaymentScreen({
             </div>
           )}
 
+          {isPaymentRecoveryPending && (
+            <div className="mb-6 p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-950 text-xs max-w-xl mx-auto">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="w-5 h-5 text-amber-700 shrink-0" />
+                <p className="leading-relaxed">
+                  وضعیت پرداخت قبلی هنوز از زیبال تأیید نشده است. برای جلوگیری از پرداخت دوباره، تا بررسی تراکنش مجدد پرداخت نکنید.
+                </p>
+              </div>
+              {onRetryPaymentVerification && (
+                <button
+                  type="button"
+                  onClick={onRetryPaymentVerification}
+                  disabled={isRecheckingPayment}
+                  className="mt-3 mr-7 px-3 py-2 bg-amber-700 hover:bg-amber-800 text-white rounded-lg font-bold disabled:opacity-60"
+                >
+                  {isRecheckingPayment ? "در حال بررسی..." : "بررسی دوباره وضعیت پرداخت"}
+                </button>
+              )}
+            </div>
+          )}
+
           <div className="max-w-xl mx-auto space-y-5">
             {/* Direct Online Payment Button */}
             <button
               onClick={handleInstantOnlinePay}
-              disabled={isLoading}
+              disabled={isLoading || isPaymentRecoveryPending || isRecheckingPayment}
               className="w-full py-4 sm:py-5 px-6 bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-[0.99] text-white rounded-2xl font-black text-base sm:text-lg shadow-xl shadow-emerald-600/30 flex items-center justify-center gap-3 transition-all cursor-pointer disabled:opacity-60"
             >
-              {isLoading ? (
+              {isRecheckingPayment ? (
+                <>
+                  <Loader2 className="w-6 h-6 animate-spin" />
+                  <span>در حال بررسی پرداخت قبلی...</span>
+                </>
+              ) : isPaymentRecoveryPending ? (
+                <>
+                  <Lock className="w-6 h-6 text-amber-300" />
+                  <span>تا تعیین وضعیت پرداخت قبلی، پرداخت جدید غیرفعال است</span>
+                </>
+              ) : isLoading ? (
                 <>
                   <Loader2 className="w-6 h-6 animate-spin" />
                   <span>در حال انتقال به درگاه امن شاپرک...</span>

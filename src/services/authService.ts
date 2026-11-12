@@ -507,6 +507,7 @@ export async function instantUnlockPayment(): Promise<{
 export async function requestOnlinePayment(): Promise<{
   success: boolean;
   paymentUrl: string;
+  trackId?: string;
   isSandbox?: boolean;
 }> {
   const token = getStoredToken();
@@ -530,6 +531,31 @@ export async function requestOnlinePayment(): Promise<{
       throw new Error("نشست کاربری شما منقضی شده است. لطفاً مجدداً با شماره موبایل وارد شوید.");
     }
     throw new Error(data?.error || "خطا در اتصال به درگاه پرداخت شاپرک (زیبال)");
+  }
+
+  return data;
+}
+
+export async function reconcileOnlinePayment(trackId: string): Promise<{
+  success: boolean;
+  pending?: boolean;
+  user?: AuthUser | null;
+}> {
+  const token = getStoredToken();
+  if (!token) throw new Error("برای بررسی پرداخت، ابتدا وارد حساب کاربری شوید.");
+
+  const res = await fetch("/api/payment/zibal/reconcile", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ trackId }),
+  });
+  const data = await res.json().catch(() => null);
+
+  if (!res.ok && !data?.pending) {
+    throw new Error(data?.error || "بررسی وضعیت پرداخت انجام نشد.");
   }
 
   return data;

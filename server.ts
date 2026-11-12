@@ -679,7 +679,7 @@ const handleOnlinePaymentRequest = async (req: any, res: any) => {
         amountRials,
         String(zibalData.trackId),
         "pending"
-      ).catch((e) => console.error("Could not record payment tx in DB:", e));
+      );
 
       return res.json({
         success: true,
@@ -716,8 +716,9 @@ app.post("/api/payment/request", authMiddleware, handleOnlinePaymentRequest);
 
 // Zibal Callback handler (Secured with DB lookup + URL fallback for robustness)
 const handleZibalCallback = async (req: any, res: any) => {
+  let trackId: string | null = null;
   try {
-    const trackId = req.query.trackId || req.body?.trackId;
+    trackId = req.query.trackId || req.body?.trackId || null;
     const success = req.query.success || req.body?.success;
     const status = req.query.status || req.body?.status;
     const queryUserId = req.query.userId || req.body?.userId;
@@ -732,12 +733,6 @@ const handleZibalCallback = async (req: any, res: any) => {
         const tx = await getTransactionByTrackId(String(trackId));
         if (tx && tx.userId) {
           verifiedUserId = tx.userId;
-          // Replay prevention: if already verified, redirect to success
-          if (tx.status === "verified") {
-            console.log(`[ZIBAL CALLBACK] تراکنش قبلاً تایید شده بود: trackId=${trackId}`);
-            await updateUserPayment(tx.userId, true, "paid", String(tx.refNumber || trackId)).catch(() => null);
-            return res.redirect(`https://koochify.ir/?payment=success&ref=${tx.refNumber || trackId}`);
-          }
         }
       } catch (dbErr) {
         console.error(`[ZIBAL CALLBACK] خطا در بازیابی تراکنش از DB:`, dbErr);
@@ -747,7 +742,7 @@ const handleZibalCallback = async (req: any, res: any) => {
       const finalUserId = verifiedUserId || (queryUserId ? String(queryUserId) : null);
       if (!finalUserId) {
         console.error(`[ZIBAL CALLBACK SECURITY] هیچ شناسه کاربری برای trackId=${trackId} یافت نشد.`);
-        return res.redirect("https://koochify.ir/?payment=failed&reason=no_user");
+        return res.redirect(`https://koochify.ir/?payment=failed&trackId=${encodeURIComponent(String(trackId))}&reason=no_user`);
       }
 
       const merchant =
@@ -768,18 +763,17 @@ const handleZibalCallback = async (req: any, res: any) => {
         await updateUserPayment(finalUserId, true, "paid", String(refNumber), cardNumber);
         await completePaymentTransaction(String(trackId), String(refNumber), cardNumber, verifyData).catch((e) => console.error("Could not complete payment tx:", e));
         console.log(`[PAYMENT SUCCESS] پرداخت کاربر ${finalUserId} با موفقیت تایید شد. شماره تراکنش: ${refNumber}`);
-        return res.redirect(`https://koochify.ir/?payment=success&ref=${refNumber}`);
+        return res.redirect(`https://koochify.ir/?payment=success&trackId=${encodeURIComponent(String(trackId))}&ref=${refNumber}`);
       } else {
-        await completePaymentTransaction(String(trackId), "", "", verifyData).catch((e) => console.error("Could not update failed tx:", e));
         console.warn(`[ZIBAL VERIFY FAILED] تراکنش تایید نشد: ${verifyData?.result} - ${verifyData?.message}`);
-        return res.redirect(`https://koochify.ir/?payment=failed&status=${verifyData?.result || status}`);
+        return res.redirect(`https://koochify.ir/?payment=failed&trackId=${encodeURIComponent(String(trackId))}&status=${verifyData?.result || status}`);
       }
     }
 
     return res.redirect(`https://koochify.ir/?payment=cancelled&status=${status || "cancelled"}`);
   } catch (err: any) {
     console.error("Error in Zibal callback handler:", err);
-    return res.redirect("https://koochify.ir/?payment=error");
+    return res.redirect(`https://koochify.ir/?payment=error${trackId ? `&trackId=${encodeURIComponent(String(trackId))}` : ""}`);
   }
 };
 
@@ -787,6 +781,52 @@ app.get("/api/payment/zibal/callback", handleZibalCallback);
 app.post("/api/payment/zibal/callback", handleZibalCallback);
 app.get("/api/payment/zarinpal/callback", handleZibalCallback);
 app.get("/api/payment/callback", handleZibalCallback);
+
+app.post("/api/payment/zibal/reconcile", authMiddleware, async (req: any, res) => {
+  try {
+    const trackId = String(req.body?.trackId || "").trim();
+    if (!trackId || !/^\d+$/.test(trackId)) {
+      return res.status(400).json({ error: "شناسه تراکنش زیبال معتبر نیست." });
+    }
+
+    const transaction = await getTransactionByTrackId(trackId);
+    if (!transaction || transaction.userId !== req.user.id) {
+      return res.status(404).json({ error: "تراکنش برای این حساب کاربری یافت نشد." });
+    }
+
+    const merchant =
+      process.env.ZIBAL_MERCHANT_KEY ||
+      process.env.MERCHANT_ID ||
+      "6addde0e944acf62f5fd1438";
+    const verifyData: any = await callZibalApi("verify", {
+      merchant,
+      trackId: Number(trackId),
+    });
+
+    if (verifyData?.result === 100 || verifyData?.result === 201) {
+      const refNumber = verifyData.refNumber || trackId;
+      const updatedUser = await updateUserPayment(
+        req.user.id,
+        true,
+        "paid",
+        String(refNumber),
+        verifyData.cardNumber || ""
+      );
+      await completePaymentTransaction(
+        trackId,
+        String(refNumber),
+        verifyData.cardNumber || "",
+        verifyData
+      );
+      return res.json({ success: true, user: updatedUser });
+    }
+
+    return res.status(202).json({ success: false, pending: true });
+  } catch (err) {
+    console.error("Zibal payment reconciliation failed:", err);
+    return res.status(503).json({ error: "بررسی پرداخت موقتاً ممکن نشد.", pending: true });
+  }
+});
 
 // Online Payment Simulation (Restricted strictly to Development environment with admin authorization)
 app.get("/api/payment/simulate", async (req: any, res) => {
