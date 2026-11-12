@@ -724,9 +724,8 @@ const handleZibalCallback = async (req: any, res: any) => {
 
     console.log(`[ZIBAL CALLBACK] برگشت از درگاه: trackId=${trackId}, success=${success}, status=${status}, queryUserId=${queryUserId}`);
 
-    const isSuccess = String(success) === "1" || String(status) === "2" || String(status) === "100";
-
-    if (isSuccess && trackId) {
+    // Callback flags are not authoritative; let Zibal verify every transaction with a track ID.
+    if (trackId) {
       // Try to get verified userId from DB transaction record (most secure path)
       let verifiedUserId: string | null = null;
       try {
