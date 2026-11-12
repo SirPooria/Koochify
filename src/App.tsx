@@ -74,6 +74,15 @@ export default function App() {
   const [paymentTrackId, setPaymentTrackId] = useState<string | null>(null);
   const [isPaymentVerificationPending, setIsPaymentVerificationPending] = useState(false);
   const [isRecheckingPayment, setIsRecheckingPayment] = useState(false);
+  const [isSavingToCloud, setIsSavingToCloud] = useState(false);
+  const [cloudSaveMessage, setCloudSaveMessage] = useState<string | null>(null);
+
+  const clearAssessmentDraft = () => {
+    localStorage.removeItem("koochify_pending_profile");
+    localStorage.removeItem("koochify_pending_results");
+    localStorage.removeItem("kochify_profile_draft");
+    localStorage.removeItem("koochify_pending_payment_track_id");
+  };
 
   const restorePaidAssessment = async (freshUser: AuthUser) => {
     setUser(freshUser);
@@ -93,21 +102,24 @@ export default function App() {
       if (restoredProfile && restoredResults) {
         setUserProfile(restoredProfile);
         setResults(restoredResults);
+        setIsSavedToCloud(false);
         try {
           await saveAssessmentToCloud(restoredProfile, restoredResults);
           setIsSavedToCloud(true);
+          setCloudSaveMessage(null);
+          clearAssessmentDraft();
         } catch (err) {
           console.warn("Could not save recovered assessment:", err);
+          setCloudSaveMessage("پرداخت تأیید شده و نتیجه نمایش داده می‌شود، اما ذخیره در پرونده ابری کامل نشد. این صفحه را نبندید؛ ذخیره را دوباره امتحان کنید.");
         }
       } else if (results) {
         setIsSavedToCloud(false);
+        setCloudSaveMessage("نتیجه در این مرورگر موجود است، اما پیش‌نویس پرونده پیدا نشد و در حساب ذخیره نشده است.");
       }
 
       setActiveTab("results");
       setIsPaymentVerificationPending(false);
       setPaymentTrackId(null);
-      localStorage.removeItem("koochify_pending_profile");
-      localStorage.removeItem("koochify_pending_results");
       localStorage.removeItem("koochify_pending_payment_track_id");
     } catch (err) {
       console.error("Could not restore the paid assessment:", err);
@@ -178,6 +190,7 @@ export default function App() {
             setUserProfile(fullRecord.profileData);
             setResults(fullRecord.resultsData);
             setIsSavedToCloud(true);
+            setCloudSaveMessage(null);
             return;
           }
         }
@@ -193,15 +206,23 @@ export default function App() {
         if (draftRaw) {
           try {
             const restoredProfile: UserAssessmentProfile = JSON.parse(draftRaw);
+            const resultsRaw = localStorage.getItem("koochify_pending_results");
             const computedResults = evaluateUserMigrationProfile(restoredProfile);
+            const restoredResults = resultsRaw ? JSON.parse(resultsRaw) as RecommendationSummary : computedResults;
             setUserProfile(restoredProfile);
-            setResults(computedResults);
-            await saveAssessmentToCloud(restoredProfile, computedResults);
+            setResults(restoredResults);
+            setIsSavedToCloud(false);
+            await saveAssessmentToCloud(restoredProfile, restoredResults);
             setIsSavedToCloud(true);
+            setCloudSaveMessage(null);
+            clearAssessmentDraft();
             setActiveTab("results");
             return;
           } catch (saveErr) {
             console.warn("خطا در ذخیره خودکار پرونده بازیابی‌شده:", saveErr);
+            setCloudSaveMessage("پرداخت شما ثبت شده، اما ذخیره پرونده کامل نشد. نتیجه موقتاً نمایش داده می‌شود؛ برای نگهداری در پنل، ذخیره را دوباره امتحان کنید.");
+            setActiveTab("results");
+            return;
           }
         }
       }
@@ -432,11 +453,18 @@ export default function App() {
       setIsAuthModalOpen(true);
       return;
     }
+    setIsSavingToCloud(true);
+    setCloudSaveMessage(null);
     try {
       await saveAssessmentToCloud(userProfile, results);
       setIsSavedToCloud(true);
+      clearAssessmentDraft();
     } catch (e) {
       console.error("Failed to save to cloud:", e);
+      setIsSavedToCloud(false);
+      setCloudSaveMessage("ذخیره پرونده در حساب کاربری ناموفق بود. اطلاعات این صفحه حفظ شده؛ دوباره تلاش کنید.");
+    } finally {
+      setIsSavingToCloud(false);
     }
   };
 
@@ -705,23 +733,40 @@ export default function App() {
         {activeTab === "results" && (
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
             {results ? (
-              <ResultsDashboard
-                summary={results}
-                profile={userProfile}
-                onSelectRouteForDossier={handleOpenDossier}
-                onOpenComparison={() => setIsComparisonOpen(true)}
-                onEditProfile={() => {
-                  setActiveTab("assessment");
-                  window.scrollTo({ top: 0, behavior: "smooth" });
-                }}
-                onDownloadReport={handleDownloadReport}
-                user={user}
-                onOpenAuth={() => setIsAuthModalOpen(true)}
-                onSaveToCloud={handleSaveToCloud}
-                isSavedToCloud={isSavedToCloud}
-                onOpenUserPanel={() => setIsUserPanelOpen(true)}
-                onOpenPayment={() => setIsPaymentModalOpen(true)}
-              />
+              <>
+                {user?.isPaid && !isSavedToCloud && (
+                  <div role="alert" className="mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+                    <p className="leading-relaxed">
+                      {cloudSaveMessage || "پرداخت تأیید شده، اما پرونده هنوز در حساب کاربری ذخیره نشده است."}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => void handleSaveToCloud()}
+                      disabled={isSavingToCloud}
+                      className="shrink-0 rounded-lg bg-amber-700 px-4 py-2 font-bold text-white disabled:opacity-60"
+                    >
+                      {isSavingToCloud ? "در حال ذخیره..." : "تلاش دوباره برای ذخیره پرونده"}
+                    </button>
+                  </div>
+                )}
+                <ResultsDashboard
+                  summary={results}
+                  profile={userProfile}
+                  onSelectRouteForDossier={handleOpenDossier}
+                  onOpenComparison={() => setIsComparisonOpen(true)}
+                  onEditProfile={() => {
+                    setActiveTab("assessment");
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                  onDownloadReport={handleDownloadReport}
+                  user={user}
+                  onOpenAuth={() => setIsAuthModalOpen(true)}
+                  onSaveToCloud={handleSaveToCloud}
+                  isSavedToCloud={isSavedToCloud}
+                  onOpenUserPanel={() => setIsUserPanelOpen(true)}
+                  onOpenPayment={() => setIsPaymentModalOpen(true)}
+                />
+              </>
             ) : (
               <div className="text-center py-20 bg-slate-900/60 rounded-3xl border border-slate-800 p-8 max-w-lg mx-auto">
                 <Compass className="w-12 h-12 text-slate-500 mx-auto mb-4 animate-spin-slow" />
