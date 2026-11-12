@@ -16,13 +16,17 @@ import {
   AlertCircle,
   Loader2,
   Lock,
-  PlusCircle
+  PlusCircle,
+  CheckCircle2,
+  ListChecks
 } from "lucide-react";
 import {
   AuthUser,
   SavedAssessmentSummary,
+  SavedAssessmentRecord,
   fetchUserAssessments,
   fetchUserAssessmentById,
+  updateAssessmentActionProgress,
   deleteAssessment,
   updateProfile,
   logout
@@ -54,8 +58,11 @@ export default function UserPanelModal({
   onStartNewAssessment
 }: UserPanelModalProps) {
   const [assessments, setAssessments] = useState<SavedAssessmentSummary[]>([]);
+  const [activeRecord, setActiveRecord] = useState<SavedAssessmentRecord | null>(null);
+  const [selectedRouteId, setSelectedRouteId] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [loadingAssessmentId, setLoadingAssessmentId] = useState<string | null>(null);
+  const [savingActionKey, setSavingActionKey] = useState<string | null>(null);
   const [isEditingName, setIsEditingName] = useState(false);
   const [newName, setNewName] = useState(user.fullName || "");
   const [isSavingName, setIsSavingName] = useState(false);
@@ -74,6 +81,15 @@ export default function UserPanelModal({
     try {
       const data = await fetchUserAssessments();
       setAssessments(data);
+      const current = data[0];
+      if (current && user.isPaid) {
+        const record = await fetchUserAssessmentById(current.id);
+        setActiveRecord(record);
+        setSelectedRouteId(record.resultsData.primaryDestinations[0]?.routeId || "");
+      } else {
+        setActiveRecord(null);
+        setSelectedRouteId("");
+      }
     } catch (e: any) {
       console.error("Error loading user assessments:", e);
       setStatusMessage({ text: "خطا در دریافت اطلاعات پرونده", type: "error" });
@@ -122,6 +138,7 @@ export default function UserPanelModal({
     try {
       await deleteAssessment(id);
       setAssessments([]);
+      setActiveRecord(null);
       setStatusMessage({ text: "پرونده قبلی حذف شد. اکنون می‌توانید ارزیابی جدید را آغاز فرمایید.", type: "success" });
       if (onStartNewAssessment) {
         setTimeout(() => {
@@ -149,6 +166,63 @@ export default function UserPanelModal({
   };
 
   const activeAssessment = assessments[0] || null;
+  const availableRoutes = activeRecord?.resultsData.primaryDestinations || [];
+  const activeRoute =
+    availableRoutes.find((route) => route.routeId === selectedRouteId) || availableRoutes[0] || null;
+  const actionProgress = activeRecord?.resultsData.actionProgress || {};
+  const routeActions = activeRoute?.nextActions || [];
+  const completedActionCount = activeRoute
+    ? routeActions.filter((action) => actionProgress[`${activeRoute.routeId}:${action.id}`]).length
+    : 0;
+  const actionCompletionPercent = routeActions.length
+    ? Math.round((completedActionCount / routeActions.length) * 100)
+    : 0;
+
+  const handleToggleAction = async (actionId: string) => {
+    if (!activeAssessment || !activeRoute || !activeRecord || savingActionKey) return;
+
+    const progressKey = `${activeRoute.routeId}:${actionId}`;
+    const completed = !Boolean(activeRecord.resultsData.actionProgress?.[progressKey]);
+    setSavingActionKey(progressKey);
+    setActiveRecord((current) => current ? {
+      ...current,
+      resultsData: {
+        ...current.resultsData,
+        actionProgress: {
+          ...(current.resultsData.actionProgress || {}),
+          [progressKey]: completed,
+        },
+      },
+    } : current);
+
+    try {
+      const savedProgress = await updateAssessmentActionProgress(
+        activeAssessment.id,
+        activeRoute.routeId,
+        actionId,
+        completed
+      );
+      setActiveRecord((current) => current ? {
+        ...current,
+        resultsData: { ...current.resultsData, actionProgress: savedProgress },
+      } : current);
+      setStatusMessage({ text: "پیشرفت اقدام در پرونده ذخیره شد.", type: "success" });
+    } catch (error: any) {
+      setActiveRecord((current) => current ? {
+        ...current,
+        resultsData: {
+          ...current.resultsData,
+          actionProgress: {
+            ...(current.resultsData.actionProgress || {}),
+            [progressKey]: !completed,
+          },
+        },
+      } : current);
+      setStatusMessage({ text: error.message || "ذخیره وضعیت اقدام ناموفق بود.", type: "error" });
+    } finally {
+      setSavingActionKey(null);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-fade-in" dir="rtl">
@@ -405,6 +479,140 @@ export default function UserPanelModal({
                     ))}
                   </div>
                 </div>
+              )}
+
+              {user.isPaid && activeRecord && activeRoute && (
+                <section className="border-t border-slate-100 pt-4 space-y-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <ListChecks className="w-5 h-5 text-emerald-700" />
+                      <div>
+                        <h5 className="font-extrabold text-sm text-slate-900">اقدامات پرونده</h5>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          {completedActionCount} از {routeActions.length} اقدام انجام شده
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-sm font-black text-emerald-800 tabular-nums">
+                      {actionCompletionPercent}٪
+                    </span>
+                  </div>
+
+                  <div
+                    role="progressbar"
+                    aria-label="پیشرفت اقدامات مسیر"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={actionCompletionPercent}
+                    className="h-2 overflow-hidden rounded-full bg-slate-100"
+                  >
+                    <div
+                      className="h-full rounded-full bg-emerald-600 transition-[width] duration-300"
+                      style={{ width: `${actionCompletionPercent}%` }}
+                    />
+                  </div>
+
+                  {availableRoutes.length > 1 && (
+                    <label className="flex flex-col gap-1.5 text-xs font-bold text-slate-600">
+                      مقصد و مسیر
+                      <select
+                        value={activeRoute.routeId}
+                        onChange={(event) => setSelectedRouteId(event.target.value)}
+                        className="w-full sm:max-w-md rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                      >
+                        {availableRoutes.map((route) => (
+                          <option key={route.routeId} value={route.routeId}>
+                            {route.flagEmoji} {route.countryNameFa}، {route.routeNameFa}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+
+                  {routeActions.length === 0 ? (
+                    <p className="py-5 text-center text-xs text-slate-500">
+                      برای این مسیر اقدامی ثبت نشده است.
+                    </p>
+                  ) : (
+                    <ol className="divide-y divide-slate-200 border-y border-slate-200">
+                      {routeActions.map((action) => {
+                        const progressKey = `${activeRoute.routeId}:${action.id}`;
+                        const completed = Boolean(actionProgress[progressKey]);
+                        const isSaving = savingActionKey === progressKey;
+                        const priorityLabel = action.priority === "high"
+                          ? "اولویت بالا"
+                          : action.priority === "medium"
+                            ? "اولویت متوسط"
+                            : "اولویت عادی";
+                        const responsibleLabel = {
+                          user: "مسئول: شما",
+                          university: "مسئول: دانشگاه",
+                          employer: "مسئول: کارفرما",
+                          official_body: "مسئول: مرجع رسمی",
+                          translator: "مسئول: مترجم",
+                        }[action.responsibleParty];
+
+                        return (
+                          <li key={progressKey} className="py-4 first:pt-4 last:pb-4">
+                            <div className="flex items-start gap-3">
+                              <label className="mt-0.5 flex shrink-0 items-center">
+                                <input
+                                  type="checkbox"
+                                  checked={completed}
+                                  disabled={savingActionKey !== null}
+                                  onChange={() => void handleToggleAction(action.id)}
+                                  aria-label={`علامت‌گذاری اقدام: ${action.titleFa}`}
+                                  className="h-5 w-5 cursor-pointer accent-emerald-700 disabled:cursor-wait"
+                                />
+                              </label>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <h6 className={`text-sm font-extrabold leading-relaxed ${completed ? "text-slate-500 line-through" : "text-slate-900"}`}>
+                                    {action.titleFa}
+                                  </h6>
+                                  {isSaving && <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-700" />}
+                                  {completed && <CheckCircle2 className="h-4 w-4 text-emerald-700" />}
+                                </div>
+                                <p className="mt-1.5 text-xs leading-6 text-slate-600">
+                                  {action.descriptionFa}
+                                </p>
+                                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-[11px] text-slate-500">
+                                  <span className={action.priority === "high" ? "font-bold text-rose-700" : ""}>
+                                    {priorityLabel}
+                                  </span>
+                                  <span>{responsibleLabel}</span>
+                                  <span>مهلت: {action.deadlineFa}</span>
+                                  <span>هزینه: {action.estimatedCostFa}</span>
+                                </div>
+                                {action.outputDocumentFa && (
+                                  <p className="mt-2 text-[11px] leading-5 text-slate-600">
+                                    <span className="font-bold text-slate-700">خروجی مورد انتظار: </span>
+                                    {action.outputDocumentFa}
+                                  </p>
+                                )}
+                                {action.links && action.links.length > 0 && (
+                                  <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                                    {action.links.map((link) => (
+                                      <a
+                                        key={link.url}
+                                        href={link.url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="text-[11px] font-bold text-emerald-800 underline decoration-emerald-300 underline-offset-2 hover:text-emerald-950"
+                                      >
+                                        {link.labelFa}
+                                      </a>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ol>
+                  )}
+                </section>
               )}
 
               {/* Start new assessment notice */}

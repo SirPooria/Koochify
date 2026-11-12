@@ -398,6 +398,28 @@ export async function fetchUserAssessmentById(id: string): Promise<SavedAssessme
   return data.assessment;
 }
 
+export async function updateAssessmentActionProgress(
+  assessmentId: string,
+  routeId: string,
+  actionId: string,
+  completed: boolean
+): Promise<Record<string, boolean>> {
+  const token = getStoredToken();
+  if (!token) throw new Error("وارد نشده‌اید");
+
+  const res = await fetch(`/api/user/assessments/${assessmentId}/actions`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ routeId, actionId, completed }),
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(data?.error || "خطا در ذخیره وضعیت اقدام پرونده.");
+  return data.actionProgress;
+}
+
 /**
  * Delete assessment by ID
  */

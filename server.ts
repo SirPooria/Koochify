@@ -15,6 +15,7 @@ import {
   getUserAssessments,
   getUserAssessmentById,
   deleteUserAssessment,
+  updateAssessmentActionProgress,
   updateUserPayment,
   getAllLeadsForAdmin,
   findUserById,
@@ -441,6 +442,39 @@ app.get("/api/user/assessments/:id", authMiddleware, async (req: any, res) => {
   } catch (err: any) {
     console.error("Error fetching assessment by id:", err);
     return res.status(500).json({ error: "خطا در دریافت جزئیات پرونده." });
+  }
+});
+
+app.patch("/api/user/assessments/:id/actions", authMiddleware, async (req: any, res) => {
+  try {
+    if (!req.user.isPaid) {
+      return res.status(402).json({ error: "برای تغییر اقدامات پرونده، پرداخت ارزیابی باید فعال باشد." });
+    }
+
+    const { routeId, actionId, completed } = req.body || {};
+    if (
+      typeof routeId !== "string" ||
+      typeof actionId !== "string" ||
+      typeof completed !== "boolean"
+    ) {
+      return res.status(400).json({ error: "اطلاعات اقدام پرونده معتبر نیست." });
+    }
+
+    const actionProgress = await updateAssessmentActionProgress(
+      req.params.id,
+      req.user.id,
+      routeId,
+      actionId,
+      completed
+    );
+    if (!actionProgress) {
+      return res.status(404).json({ error: "اقدام مورد نظر در این پرونده پیدا نشد." });
+    }
+
+    return res.json({ success: true, actionProgress });
+  } catch (err: any) {
+    console.error("Error updating assessment action progress:", err);
+    return res.status(500).json({ error: "خطا در ذخیره وضعیت اقدام پرونده." });
   }
 });
 

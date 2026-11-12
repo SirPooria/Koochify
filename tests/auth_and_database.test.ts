@@ -13,6 +13,7 @@ import {
   getUserAssessments,
   getUserAssessmentById,
   deleteUserAssessment,
+  updateAssessmentActionProgress,
   updateUserPayment,
   getAllLeadsForAdmin,
   findUserById,
@@ -96,10 +97,12 @@ describe("Koochify Phone Authentication & User Dossier Database Suite", () => {
       primaryDestinations: [
         {
           countryCode: "DE",
+          routeId: "de_study_visa",
           countryNameFa: "آلمان",
           routeNameFa: "کارت شانس (Chancenkarte)",
           fitScore: 84,
           flagEmoji: "🇩🇪",
+          nextActions: [{ id: "act_1", titleFa: "گرفتن پذیرش" }],
         },
         {
           countryCode: "CA",
@@ -125,16 +128,34 @@ describe("Koochify Phone Authentication & User Dossier Database Suite", () => {
     assert.ok(foundSummary, "Dossier must exist in user assessment list");
     assert.strictEqual(foundSummary?.primaryDestinations[0].countryCode, "DE");
 
+    const actionProgress = await updateAssessmentActionProgress(
+      saved.id,
+      user.id,
+      "de_study_visa",
+      "act_1",
+      true
+    );
+    assert.strictEqual(actionProgress?.["de_study_visa:act_1"], true);
+
     // Fetch full record by ID
     const full = await getUserAssessmentById(saved.id, user.id);
     assert.ok(full, "Full record must be returned");
     assert.strictEqual(full?.profileData.primaryJobTitle, "Frontend Developer");
     assert.strictEqual(full?.resultsData.primaryDestinations[0].countryNameFa, "آلمان");
+    assert.strictEqual(full?.resultsData.actionProgress?.["de_study_visa:act_1"], true);
 
     // User isolation check: another user cannot fetch this assessment
     const otherUser = await findOrCreateUser("09339998877", "کاربر ناشناس");
     const unauthorizedAccess = await getUserAssessmentById(saved.id, otherUser.id);
     assert.strictEqual(unauthorizedAccess, null, "Unauthorized user cannot access another user's dossier");
+    const unauthorizedProgressUpdate = await updateAssessmentActionProgress(
+      saved.id,
+      otherUser.id,
+      "de_study_visa",
+      "act_1",
+      false
+    );
+    assert.strictEqual(unauthorizedProgressUpdate, null, "Another user cannot modify dossier action progress");
 
     // Delete assessment
     const isDeleted = await deleteUserAssessment(saved.id, user.id);

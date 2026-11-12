@@ -409,6 +409,34 @@ async function getUserAssessmentById(id, userId) {
   if (record && record.userId === userId) return record;
   return null;
 }
+async function updateAssessmentActionProgress(id, userId, routeId, actionId, completed) {
+  const assessment = await getUserAssessmentById(id, userId);
+  if (!assessment || !Array.isArray(assessment.resultsData?.primaryDestinations)) return null;
+  const route = assessment.resultsData.primaryDestinations.find(
+    (item) => item.routeId === routeId
+  );
+  if (!route?.nextActions?.some((action) => action.id === actionId)) return null;
+  const progressKey = `${routeId}:${actionId}`;
+  const actionProgress = {
+    ...assessment.resultsData.actionProgress || {},
+    [progressKey]: completed
+  };
+  const resultsData = { ...assessment.resultsData, actionProgress };
+  if (supabase) {
+    const { data, error } = await supabase.from("user_assessments").update({ results_data: resultsData, updated_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", id).eq("user_id", userId).select("id").maybeSingle();
+    if (error) {
+      console.error("\u274C [SUPABASE ERROR] updateAssessmentActionProgress:", error.message);
+      throw new Error(`\u062E\u0637\u0627 \u062F\u0631 \u0630\u062E\u06CC\u0631\u0647 \u067E\u06CC\u0634\u0631\u0641\u062A \u0627\u0642\u062F\u0627\u0645\u0627\u062A: ${error.message}`);
+    }
+    if (!data) return null;
+    return actionProgress;
+  }
+  const record = memoryFallbackStore.assessments.get(id);
+  if (!record || record.userId !== userId) return null;
+  record.resultsData = resultsData;
+  record.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
+  return actionProgress;
+}
 async function deleteUserAssessment(id, userId) {
   if (supabase) {
     const { error } = await supabase.from("user_assessments").delete().eq("id", id).eq("user_id", userId);
@@ -1488,6 +1516,31 @@ app.get("/api/user/assessments/:id", authMiddleware, async (req, res) => {
   } catch (err) {
     console.error("Error fetching assessment by id:", err);
     return res.status(500).json({ error: "\u062E\u0637\u0627 \u062F\u0631 \u062F\u0631\u06CC\u0627\u0641\u062A \u062C\u0632\u0626\u06CC\u0627\u062A \u067E\u0631\u0648\u0646\u062F\u0647." });
+  }
+});
+app.patch("/api/user/assessments/:id/actions", authMiddleware, async (req, res) => {
+  try {
+    if (!req.user.isPaid) {
+      return res.status(402).json({ error: "\u0628\u0631\u0627\u06CC \u062A\u063A\u06CC\u06CC\u0631 \u0627\u0642\u062F\u0627\u0645\u0627\u062A \u067E\u0631\u0648\u0646\u062F\u0647\u060C \u067E\u0631\u062F\u0627\u062E\u062A \u0627\u0631\u0632\u06CC\u0627\u0628\u06CC \u0628\u0627\u06CC\u062F \u0641\u0639\u0627\u0644 \u0628\u0627\u0634\u062F." });
+    }
+    const { routeId, actionId, completed } = req.body || {};
+    if (typeof routeId !== "string" || typeof actionId !== "string" || typeof completed !== "boolean") {
+      return res.status(400).json({ error: "\u0627\u0637\u0644\u0627\u0639\u0627\u062A \u0627\u0642\u062F\u0627\u0645 \u067E\u0631\u0648\u0646\u062F\u0647 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A." });
+    }
+    const actionProgress = await updateAssessmentActionProgress(
+      req.params.id,
+      req.user.id,
+      routeId,
+      actionId,
+      completed
+    );
+    if (!actionProgress) {
+      return res.status(404).json({ error: "\u0627\u0642\u062F\u0627\u0645 \u0645\u0648\u0631\u062F \u0646\u0638\u0631 \u062F\u0631 \u0627\u06CC\u0646 \u067E\u0631\u0648\u0646\u062F\u0647 \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F." });
+    }
+    return res.json({ success: true, actionProgress });
+  } catch (err) {
+    console.error("Error updating assessment action progress:", err);
+    return res.status(500).json({ error: "\u062E\u0637\u0627 \u062F\u0631 \u0630\u062E\u06CC\u0631\u0647 \u0648\u0636\u0639\u06CC\u062A \u0627\u0642\u062F\u0627\u0645 \u067E\u0631\u0648\u0646\u062F\u0647." });
   }
 });
 app.delete("/api/user/assessments/:id", authMiddleware, async (req, res) => {

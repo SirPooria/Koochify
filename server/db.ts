@@ -664,6 +664,52 @@ export async function getUserAssessmentById(id: string, userId: string): Promise
   return null;
 }
 
+export async function updateAssessmentActionProgress(
+  id: string,
+  userId: string,
+  routeId: string,
+  actionId: string,
+  completed: boolean
+): Promise<Record<string, boolean> | null> {
+  const assessment = await getUserAssessmentById(id, userId);
+  if (!assessment || !Array.isArray(assessment.resultsData?.primaryDestinations)) return null;
+
+  const route = assessment.resultsData.primaryDestinations.find(
+    (item: any) => item.routeId === routeId
+  );
+  if (!route?.nextActions?.some((action: any) => action.id === actionId)) return null;
+
+  const progressKey = `${routeId}:${actionId}`;
+  const actionProgress = {
+    ...(assessment.resultsData.actionProgress || {}),
+    [progressKey]: completed,
+  };
+  const resultsData = { ...assessment.resultsData, actionProgress };
+
+  if (supabase) {
+    const { data, error } = await supabase
+      .from("user_assessments")
+      .update({ results_data: resultsData, updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .eq("user_id", userId)
+      .select("id")
+      .maybeSingle();
+
+    if (error) {
+      console.error("❌ [SUPABASE ERROR] updateAssessmentActionProgress:", error.message);
+      throw new Error(`خطا در ذخیره پیشرفت اقدامات: ${error.message}`);
+    }
+    if (!data) return null;
+    return actionProgress;
+  }
+
+  const record = memoryFallbackStore.assessments.get(id);
+  if (!record || record.userId !== userId) return null;
+  record.resultsData = resultsData;
+  record.updatedAt = new Date().toISOString();
+  return actionProgress;
+}
+
 /**
  * Deletes an assessment
  */

@@ -283,6 +283,7 @@ export interface GroqAIEvaluation {
 
 export interface RecommendationSummary {
   primaryDestinations: RecommendedRouteResult[]; // Up to 3 distinct countries
+  actionProgress?: Record<string, boolean>;
   allEvaluatedRoutes?: RecommendedRouteResult[];
   totalEligibleCount: number;
   totalEvaluatedRoutes: number;
