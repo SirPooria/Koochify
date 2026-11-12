@@ -577,8 +577,7 @@ async function callZibalApi(action: "request" | "verify", payload: any): Promise
             "Content-Length": Buffer.byteLength(postData),
             "X-Proxy-Token": "my-secret-123",
           },
-          rejectUnauthorized: false,
-          timeout: 6000,
+          timeout: 9000,
         },
         (res) => {
           let raw = "";
@@ -600,7 +599,7 @@ async function callZibalApi(action: "request" | "verify", payload: any): Promise
       proxyReq.on("error", reject);
       proxyReq.on("timeout", () => {
         proxyReq.destroy();
-        reject(new Error("Proxy timeout (6s)"));
+        reject(new Error("Proxy timeout (9s)"));
       });
       proxyReq.write(postData);
       proxyReq.end();
@@ -618,6 +617,7 @@ async function callZibalApi(action: "request" | "verify", payload: any): Promise
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(9000),
   });
 
   return await directRes.json();
