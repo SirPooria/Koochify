@@ -254,7 +254,12 @@ export default function App() {
       const isPaymentReturn = ["success", "failed", "error", "cancelled"].includes(paymentStatus || "");
 
       if (!isPaymentReturn) {
-        fetchCurrentUser().then(syncUserState);
+        const pendingTrackId = localStorage.getItem("koochify_pending_payment_track_id");
+        if (pendingTrackId) {
+          void verifyPendingPayment(pendingTrackId);
+        } else {
+          fetchCurrentUser().then(syncUserState);
+        }
       }
 
       // Handle return from payment gateway (Zibal redirect back)
