@@ -1706,8 +1706,7 @@ var handleZibalCallback = async (req, res) => {
     const status = req.query.status || req.body?.status;
     const queryUserId = req.query.userId || req.body?.userId;
     console.log(`[ZIBAL CALLBACK] \u0628\u0631\u06AF\u0634\u062A \u0627\u0632 \u062F\u0631\u06AF\u0627\u0647: trackId=${trackId}, success=${success}, status=${status}, queryUserId=${queryUserId}`);
-    const isSuccess = String(success) === "1" || String(status) === "2" || String(status) === "100";
-    if (isSuccess && trackId) {
+    if (trackId) {
       let verifiedUserId = null;
       try {
         const tx = await getTransactionByTrackId(String(trackId));
