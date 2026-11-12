@@ -410,6 +410,11 @@ export async function updateUserPayment(
   cardLastDigits?: string | null
 ): Promise<User | null> {
   const now = new Date().toISOString();
+  const safeCardLastDigits = cardLastDigits === undefined
+    ? undefined
+    : cardLastDigits
+      ? cardLastDigits.replace(/\D/g, "").slice(-4) || null
+      : null;
   invalidateUserSessionCache(userId);
 
   if (supabase) {
@@ -419,7 +424,7 @@ export async function updateUserPayment(
       updated_at: now,
     };
     if (paymentRef !== undefined) payload.payment_ref = paymentRef;
-    if (cardLastDigits !== undefined) payload.card_last_digits = cardLastDigits;
+    if (safeCardLastDigits !== undefined) payload.card_last_digits = safeCardLastDigits;
     if (isPaid) payload.paid_at = now;
 
     const { data, error } = await supabase
@@ -442,7 +447,7 @@ export async function updateUserPayment(
     user.paymentStatus = paymentStatus;
     user.updatedAt = now;
     if (paymentRef !== undefined) user.paymentRef = paymentRef;
-    if (cardLastDigits !== undefined) user.cardLastDigits = cardLastDigits;
+    if (safeCardLastDigits !== undefined) user.cardLastDigits = safeCardLastDigits;
     if (isPaid) user.paidAt = now;
     return user;
   }

@@ -235,6 +235,7 @@ async function updateUserProfile(userId, fullName) {
 }
 async function updateUserPayment(userId, isPaid, paymentStatus, paymentRef, cardLastDigits) {
   const now = (/* @__PURE__ */ new Date()).toISOString();
+  const safeCardLastDigits = cardLastDigits === void 0 ? void 0 : cardLastDigits ? cardLastDigits.replace(/\D/g, "").slice(-4) || null : null;
   invalidateUserSessionCache(userId);
   if (supabase) {
     const payload = {
@@ -243,7 +244,7 @@ async function updateUserPayment(userId, isPaid, paymentStatus, paymentRef, card
       updated_at: now
     };
     if (paymentRef !== void 0) payload.payment_ref = paymentRef;
-    if (cardLastDigits !== void 0) payload.card_last_digits = cardLastDigits;
+    if (safeCardLastDigits !== void 0) payload.card_last_digits = safeCardLastDigits;
     if (isPaid) payload.paid_at = now;
     const { data, error } = await supabase.from("users").update(payload).eq("id", userId).select().maybeSingle();
     if (error) {
@@ -258,7 +259,7 @@ async function updateUserPayment(userId, isPaid, paymentStatus, paymentRef, card
     user.paymentStatus = paymentStatus;
     user.updatedAt = now;
     if (paymentRef !== void 0) user.paymentRef = paymentRef;
-    if (cardLastDigits !== void 0) user.cardLastDigits = cardLastDigits;
+    if (safeCardLastDigits !== void 0) user.cardLastDigits = safeCardLastDigits;
     if (isPaid) user.paidAt = now;
     return user;
   }
@@ -1163,8 +1164,8 @@ import crypto2 from "node:crypto";
 import https from "node:https";
 dotenv2.config();
 var app = express();
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "2mb" }));
+app.use(express.urlencoded({ extended: true, limit: "2mb" }));
 app.use((_req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-Frame-Options", "SAMEORIGIN");

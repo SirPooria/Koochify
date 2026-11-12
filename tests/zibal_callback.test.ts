@@ -9,7 +9,11 @@ import https from "node:https";
 
 const originalFetch = globalThis.fetch;
 const originalHttpsRequest = https.request;
-let mockVerifyResult: Record<string, unknown> = { result: 100, refNumber: "test-ref" };
+let mockVerifyResult: Record<string, unknown> = {
+  result: 100,
+  refNumber: "225298659263",
+  cardNumber: "504172******0006",
+};
 
 // Ensure callback verification stays local and cannot contact external services.
 (https as any).request = () => {
@@ -69,6 +73,8 @@ describe("Zibal payment callback", () => {
     assert.match(response.headers.get("location") || "", /payment=success/);
     const updatedUser = await database.findUserById(user.id);
     assert.strictEqual(updatedUser?.isPaid, true);
+    assert.strictEqual(updatedUser?.paymentRef, "225298659263");
+    assert.strictEqual(updatedUser?.cardLastDigits, "0006");
   });
 
   it("reconciles a pending payment for its authenticated owner", async () => {
@@ -128,6 +134,24 @@ describe("Zibal payment callback", () => {
     assert.strictEqual(transaction?.status, "pending");
     const updatedUser = await database.findUserById(user.id);
     assert.strictEqual(updatedUser?.isPaid, false);
-    mockVerifyResult = { result: 100, refNumber: "test-ref" };
+    mockVerifyResult = {
+      result: 100,
+      refNumber: "225298659263",
+      cardNumber: "504172******0006",
+    };
+  });
+
+  it("accepts JSON assessment-sized requests above Express's default limit", async () => {
+    const response = await originalFetch(`${baseUrl}/api/auth/verify-otp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        phoneNumber: "09360000111",
+        code: "00000",
+        assessmentData: "x".repeat(150_000),
+      }),
+    });
+
+    assert.strictEqual(response.status, 400);
   });
 });

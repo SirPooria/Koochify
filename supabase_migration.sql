@@ -114,6 +114,11 @@ BEGIN
     CREATE POLICY "Service role full access on payment_transactions" ON public.payment_transactions FOR ALL TO service_role USING (true) WITH CHECK (true);
 END $$;
 
+-- Widen legacy payment columns so gateway references cannot block paid status updates.
+ALTER TABLE public.users
+    ALTER COLUMN payment_ref TYPE TEXT,
+    ALTER COLUMN card_last_digits TYPE TEXT;
+
 -- همچنین ایجاد پالیسی عمومی خواندن/نوشتن از طریق anon برای احتیاط در صورت استفاده از کلاینت مرورگر
 DO $$
 BEGIN
