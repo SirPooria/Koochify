@@ -206,10 +206,10 @@ export default function ResultsDashboard({
             <button
               onClick={onDownloadReport}
               className="px-3.5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-              title="خروجی فایل مکتوب پرونده"
+              title="ساخت نسخه PDF برای ذخیره یا چاپ"
             >
               <Download className="w-4 h-4" />
-              <span>دانلود گزارش</span>
+              <span>دریافت گزارش PDF</span>
             </button>
 
             <button

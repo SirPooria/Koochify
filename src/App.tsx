@@ -561,52 +561,133 @@ export default function App() {
       return;
     }
 
-    let md = `# گزارش جامع راهبردی مهاجرت کوچیفای (Kochify Report)\n`;
-    md += `تاریخ ارزیابی: ${new Date().toLocaleDateString("fa-IR")} | نگارش سامانه: v2.6.1\n\n`;
-    md += `> **توجه حقوقی:** این گزارش تحلیل غیررسمی تطابق شرایط خوداظهاری با قوانین مهاجرتی تا تاریخ بازبینی است و متضمن صدور ویزا یا پذیرش نیست.\n\n`;
+    const escapeHtml = (value: unknown) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
+    })[char] as string);
+    const renderList = (items: string[]) => items.length
+      ? `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
+      : "<p>موردی ثبت نشده است.</p>";
+    const reportDate = new Date().toLocaleDateString("fa-IR");
 
-    md += `## ۱. خلاصه پروفایل متقاضی\n`;
-    md += `- سن: ${userProfile.age} سال\n`;
-    md += `- بالاترین مقطع: ${userProfile.highestDegree} در رشته ${userProfile.fieldOfStudy}\n`;
-    md += `- سابقه کار: ${userProfile.totalWorkExperienceYears} سال به عنوان ${userProfile.primaryJobTitle || "متخصص"}\n`;
-    md += `- سطح زبان انگلیسی: ${userProfile.englishEstimatedLevel}\n`;
-    md += `- بودجه در دسترس: ${userProfile.budgetRangeCategory} (${userProfile.budgetCurrency})\n\n`;
+    const destinationsHtml = results.primaryDestinations.map((dest, index) => {
+      const actionsHtml = (dest.nextActions || []).map((action) => `
+        <li class="action">
+          <h4>${escapeHtml(action.titleFa)}</h4>
+          <p>${escapeHtml(action.descriptionFa)}</p>
+          <p class="meta"><strong>مسئول:</strong> ${escapeHtml(action.responsibleParty)}&nbsp; | &nbsp;<strong>مهلت:</strong> ${escapeHtml(action.deadlineFa)}&nbsp; | &nbsp;<strong>هزینه:</strong> ${escapeHtml(action.estimatedCostFa)}</p>
+          <p><strong>خروجی مورد انتظار:</strong> ${escapeHtml(action.outputDocumentFa)}</p>
+          ${(action.links || []).map((link) => `<p><a href="${escapeHtml(link.url)}">${escapeHtml(link.labelFa)}</a></p>`).join("")}
+        </li>`).join("");
+      const documentsHtml = dest.documents.map((doc) => `
+        <tr>
+          <td>${escapeHtml(doc.titleFa)}<br><small>${escapeHtml(doc.notesFa)}</small></td>
+          <td>${escapeHtml(doc.translationRule)}</td>
+          <td>${escapeHtml(doc.legalisationRule)}</td>
+        </tr>`).join("");
+      const citationsHtml = dest.citations.map((citation) => `
+        <li><a href="${escapeHtml(citation.canonicalUrl)}">${escapeHtml(citation.publisher)} — ${escapeHtml(citation.title)}</a>
+        <small>بازبینی: ${escapeHtml(citation.checkedAt)}. ${escapeHtml(citation.summaryFa)}</small></li>`).join("");
 
-    md += `## ۲. سه مقصد برتر و متمایز پیشنهادی\n\n`;
-    results.primaryDestinations.forEach((dest, idx) => {
-      md += `### ${idx + 1}. ${dest.countryNameFa} — مسیر: ${dest.routeNameFa}\n`;
-      md += `- **شاخص تناسب با شرایط اعلام‌شده:** ${dest.fitScore} از ۱۰۰\n`;
-      md += `- **وضعیت صلاحیت فعلی:** ${dest.verdictLabelFa}\n`;
-      md += `- **دلیل پیشنهاد:** ${dest.whyThisOptionFa}\n`;
-      md += `- **حداقل تمکن رسمی:** ${dest.financialBreakdown.officialLivingFundFa} (معتبر از ${dest.financialBreakdown.rateEffectiveDate})\n`;
-      md += `- **برآورد شهریه سال اول:** ${dest.financialBreakdown.annualTuitionEstimateFa}\n`;
-      md += `- **مجموع هزینه تقریبی سال اول:** ${dest.financialBreakdown.estimatedFirstYearTotalFa}\n`;
-      md += `- **حد قانونی زبان:** ${dest.languageRequirement.legalMinimumFa}\n`;
-      md += `- **زمان‌بندی تقریبی:** ${dest.timelineEstFa}\n\n`;
+      return `
+        <section class="destination">
+          <h2>${index + 1}. ${escapeHtml(dest.countryNameFa)} — ${escapeHtml(dest.routeNameFa)}</h2>
+          <div class="score">شاخص تناسب با شرایط اعلام‌شده: ${escapeHtml(dest.fitScore)} از ۱۰۰</div>
+          <p><strong>وضعیت:</strong> ${escapeHtml(dest.verdictLabelFa)}</p>
+          <p><strong>دلیل پیشنهاد:</strong> ${escapeHtml(dest.whyThisOptionFa)}</p>
+          <h3>هزینه و آمادگی</h3>
+          <table><tbody>
+            <tr><th>تمکن رسمی زندگی</th><td>${escapeHtml(dest.financialBreakdown.officialLivingFundFa)} (معتبر از ${escapeHtml(dest.financialBreakdown.rateEffectiveDate)})</td></tr>
+            <tr><th>شهریه سال اول</th><td>${escapeHtml(dest.financialBreakdown.annualTuitionEstimateFa)}</td></tr>
+            <tr><th>هزینه تقریبی سال اول</th><td>${escapeHtml(dest.financialBreakdown.estimatedFirstYearTotalFa)}</td></tr>
+            <tr><th>الزام زبان</th><td>${escapeHtml(dest.languageRequirement.legalMinimumFa)}<br>${escapeHtml(dest.languageRequirement.practicalTargetFa)}</td></tr>
+            <tr><th>زمان‌بندی تخمینی</th><td>${escapeHtml(dest.timelineEstFa)}</td></tr>
+          </tbody></table>
+          <h3>اقدامات بعدی</h3>
+          ${actionsHtml ? `<ol>${actionsHtml}</ol>` : "<p>اقدامی ثبت نشده است.</p>"}
+          <h3>ریسک‌های کلیدی</h3>
+          ${renderList(dest.keyRisksFa)}
+          <h3>مدارک کلیدی</h3>
+          <table><thead><tr><th>مدرک</th><th>ترجمه</th><th>تأیید / قانونی‌سازی</th></tr></thead><tbody>${documentsHtml}</tbody></table>
+          <h3>منابع رسمی</h3>
+          ${citationsHtml ? `<ul>${citationsHtml}</ul>` : "<p>منبعی ثبت نشده است.</p>"}
+        </section>`;
+    }).join("");
 
-      md += `#### مهم‌ترین اقدامات اجرایی بعدی:\n`;
-      dest.nextActions.forEach((action) => {
-        md += `- [ ] **${action.titleFa}**: ${action.descriptionFa} (مهلت: ${action.deadlineFa} | مسئول: ${action.responsibleParty})\n`;
-      });
-      md += `\n`;
-    });
+    const reportWindow = window.open("", "_blank");
+    if (!reportWindow) {
+      window.alert("برای ساخت PDF، اجازه بازشدن پنجره چاپ را در مرورگر فعال کنید.");
+      return;
+    }
 
-    md += `## ۳. نقاط قوت و شکاف‌های نیازمند تقویت پرونده\n`;
-    md += `### نقاط قوت:\n`;
-    results.profileStrengths.forEach((s) => (md += `- ${s}\n`));
-    md += `\n### شکاف‌ها و موانع:\n`;
-    results.profileGaps.forEach((g) => (md += `- ${g}\n`));
-    md += `\n---\n*ایجاد شده توسط سامانه متن‌باز کوچیفای (Kochify)*\n`;
-
-    const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `kochify_migration_report_${new Date().toISOString().split("T")[0]}.md`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    const filename = `Koochify_Migration_Report_${new Date().toISOString().slice(0, 10)}`;
+    reportWindow.document.open();
+    reportWindow.document.write(`<!doctype html>
+      <html lang="fa" dir="rtl">
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>${filename}</title>
+          <link rel="preconnect" href="https://fonts.googleapis.com">
+          <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+          <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+          <style>
+            @page { size: A4; margin: 16mm 14mm; }
+            * { box-sizing: border-box; }
+            body { margin: 0; color: #17211d; font: 11pt/1.9 Vazirmatn, Tahoma, sans-serif; direction: rtl; text-align: right; }
+            h1, h2, h3, h4, p { margin-top: 0; }
+            h1 { margin-bottom: 4px; color: #064e3b; font-size: 23pt; }
+            h2 { margin: 0 0 12px; color: #065f46; font-size: 16pt; }
+            h3 { margin: 18px 0 8px; color: #0f513d; font-size: 12pt; }
+            h4 { margin: 0 0 4px; font-size: 11pt; }
+            p { margin-bottom: 7px; }
+            .subtitle, small, .meta { color: #52635b; font-size: 9pt; }
+            .notice { margin: 16px 0; padding: 10px 12px; border-right: 3px solid #d97706; background: #fffbeb; color: #713f12; font-size: 9pt; }
+            .profile, .destination { margin-top: 16px; padding-top: 14px; border-top: 1px solid #d7e2dc; }
+            .destination + .destination { break-before: page; }
+            .score { display: inline-block; margin: 0 0 10px; padding: 3px 9px; border-radius: 4px; background: #d1fae5; color: #065f46; font-weight: 700; }
+            table { width: 100%; margin: 8px 0 12px; border-collapse: collapse; font-size: 9pt; }
+            th, td { padding: 6px 8px; border: 1px solid #dbe5df; vertical-align: top; text-align: right; }
+            th { width: 27%; background: #f0f7f3; }
+            ol, ul { margin: 6px 0; padding-right: 21px; }
+            li { margin-bottom: 5px; }
+            .action { margin-bottom: 10px; padding-right: 3px; break-inside: avoid; }
+            .meta { margin: 4px 0; }
+            a { color: #047857; text-decoration: underline; overflow-wrap: anywhere; }
+            .footer { margin-top: 20px; padding-top: 8px; border-top: 1px solid #d7e2dc; color: #64746c; font-size: 8pt; }
+            @media screen { body { max-width: 820px; margin: 28px auto; padding: 28px; background: white; box-shadow: 0 2px 18px #0001; } }
+          </style>
+        </head>
+        <body>
+          <header>
+            <h1>گزارش راهبردی مهاجرت کوچیفای</h1>
+            <p class="subtitle">تاریخ ارزیابی: ${escapeHtml(reportDate)} | ویژه ${escapeHtml(userProfile.fullName || "متقاضی")}</p>
+          </header>
+          <p class="notice"><strong>توجه حقوقی:</strong> این گزارش تحلیل غیررسمی شرایط خوداظهاری بر مبنای داده‌های درج‌شده و تاریخ بازبینی منابع است؛ تضمین پذیرش یا صدور ویزا نیست. مقررات را پیش از اقدام از مرجع رسمی بررسی کنید.</p>
+          <section class="profile">
+            <h2>خلاصه پروفایل</h2>
+            <table><tbody>
+              <tr><th>سن</th><td>${escapeHtml(userProfile.age)} سال</td></tr>
+              <tr><th>تحصیلات</th><td>${escapeHtml(userProfile.highestDegree)} — ${escapeHtml(userProfile.fieldOfStudy)}</td></tr>
+              <tr><th>سابقه کار</th><td>${escapeHtml(userProfile.totalWorkExperienceYears)} سال — ${escapeHtml(userProfile.primaryJobTitle || "ثبت نشده")}</td></tr>
+              <tr><th>سطح انگلیسی</th><td>${escapeHtml(userProfile.englishEstimatedLevel)}</td></tr>
+              <tr><th>بودجه اعلام‌شده</th><td>${escapeHtml(userProfile.budgetRangeCategory)} (${escapeHtml(userProfile.budgetCurrency)})</td></tr>
+            </tbody></table>
+          </section>
+          <section><h2>مقصدهای پیشنهادی</h2>${destinationsHtml}</section>
+          <section class="profile">
+            <h2>نقاط قوت و شکاف‌های پرونده</h2>
+            <h3>نقاط قوت</h3>${renderList(results.profileStrengths)}
+            <h3>موارد نیازمند تقویت</h3>${renderList(results.profileGaps)}
+          </section>
+          <footer class="footer">تهیه‌شده توسط سامانه تصمیم‌یار کوچیفای (Koochify). شاخص تناسب، احتمال ویزا یا پذیرش نیست.</footer>
+          <script>window.addEventListener("load", async () => { try { await document.fonts.ready; } catch {} window.focus(); window.print(); });</script>
+        </body>
+      </html>`);
+    reportWindow.document.close();
   };
 
   const handleOpenDossier = (route: RecommendedRouteResult) => {
